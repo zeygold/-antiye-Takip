@@ -5,7 +5,13 @@ from datetime import datetime
 import calendar
 
 app = Flask(__name__)
-DB_NAME = 'santiye.db'
+
+# Render'da kalıcı disk klasörü varsa oraya, yoksa yerel klasöre kaydeder
+DATA_DIR = '/opt/render/project/data'
+if os.path.exists(DATA_DIR):
+    DB_NAME = os.path.join(DATA_DIR, 'santiye.db')
+else:
+    DB_NAME = 'santiye.db'
 
 def get_db():
     conn = sqlite3.connect(DB_NAME)
@@ -498,7 +504,7 @@ def gider_ekle():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('INSERT INTO giderler (tarih, kategori, tutar, aciklama) VALUES (?, ?, ?, ?)',
-                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form['aciklama']))
+                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form.get('aciklama', '')))
     conn.commit()
     conn.close()
     return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
