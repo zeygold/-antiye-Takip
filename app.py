@@ -358,4 +358,137 @@ def manifest():
 @app.route('/')
 def ana_sayfa():
     secili_donem = request.args.get('donem', datetime.now().strftime('%Y-%m'))
-    yil, ay = map(int, secili_donem
+    yil, ay = map(int, secili_donem.split('-'))
+    ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM personeller')
+    personeller_db = cursor.fetchall()
+    
+    personeller = []
+    for p in personeller_db:
+        cursor.execute('SELECT tarih, durum, not_aciklama FROM puantaj WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ?', (p['id'], secili_donem))
+        puantaj_rows = cursor.fetchall()
+        puantaj_dict = {row['tarih']: {'durum': row['durum'], 'not_aciklama': row['not_aciklama']} for row in puantaj_rows}
+        
+        p_gun = sum([float(val['durum']) for val in puantaj_dict.values() if val['durum'] is not None])
+        if p['ucret_tipi'] == 'Aylik':
+            hakedis = p['ucret'] if p_gun >= ayin_gun_sayisi else (p['ucret'] / ayin_gun_sayisi) * p_gun
+        else:
+            hakedis = p['ucret'] * p_gun
+            
+        cursor.execute('SELECT SUM(tutar) as toplam_avans FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? AND tip = "Avans"', (p['id'], secili_donem))
+        p_avans = cursor.fetchone()['toplam_avans'] or 0.0
+        
+        personeller.append({
+            'id': p['id'], 'ad_soyad': p['ad_soyad'], 'gorev': p['gorev'], 'ucret_tipi': p['ucret_tipi'],
+            'ucret': p['ucret'], 'puantaj_dict': puantaj_dict, 'toplam_gun': p_gun, 'hakedis': hakedis,
+            'toplam_avans': p_avans, 'kalan': hakedis - p_avans
+        })
+        
+    cursor.execute('SELECT * FROM giderler WHERE strftime("%Y-%m", tarih) = ? ORDER BY tarih DESC', (secili_donem,))
+    giderler = cursor.fetchall()
+    toplam_gider = sum([g['tutar'] for g in giderler])
+    conn.close()
+    
+    return render_template_string(ANA_SAYFA_HTML, personeller=personeller, secili_donem=secili_donem, 
+                                  secili_ay_str=datetime(yil, ay, 1).strftime('%B %Y'), bugun=datetime.now().strftime('%Y-%m-%d'),
+                                  yil=yil, ay=ay, ayin_gun_sayisi=ayin_gun_sayisi, giderler=giderler, toplam_gider=toplam_gider)
+
+@app.route('/api/puantaj-guncelle', methods=['POST'])
+def api_puantaj_guncelle():
+    data = request.json
+    p_id = data.get('personel_id')
+    tarih = data.get('tarih')
+    durum = data.get('durum')
+    not_aciklama = data.get('not_aciklama')
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (p_id, tarih))
+    row = cursor.fetchone()
+    
+    yeni_durum = durum if durum is not None and durum != '' else (row['durum'] if row else None)
+    yeni_not = not_aciklama if not_aciklama is not None else (row['not_aciklama'] if row else None)
+    
+    if yeni_durum is not None or yeni_not is not None:
+        cursor.execute('''
+            INSERT INTO puantaj (personel_id, tarih, durum, not_aciklama) VALUES (?, ?, ?, ?)
+            ON CONFLICT(personel_id, tarih) DO UPDATE SET durum=COALESCE(excluded.durum, puantaj.durum), not_aciklama=COALESCE(excluded.not_aciklama, puantaj.not_aciklama)
+        ''', (p_id, tarih, yeni_durum, yeni_not))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/personel-ekstre/<int:personel_id>')
+def personel_ekstre(personel_id):
+    secili_donem = request.args.get('donem', datetime.now().strftime('%Y-%m'))
+    yil, ay = map(int, secili_donem.split('-'))
+    ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM personeller WHERE id = ?', (personel_id,))
+    personel = cursor.fetchone()
+    
+    puantaj_list = []
+    toplam_gun = 0.0
+    for gun in range(1, ayin_gun_sayisi + 1):
+        tarih_str = f"{yil}-{ay:02d}-{gun:02d}"
+        cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih_str))
+        row = cursor.fetchone()
+        durum = row['durum'] if row and row['durum'] is not None else 0.0
+        toplam_gun += durum
+        puantaj_list.append({'tarih': tarih_str, 'durum': durum, 'not_aciklama': row['not_aciklama'] if row else ''})
+        
+    puantaj_rows = [(puantaj_list[i], puantaj_list[i+1] if i+1 < len(puantaj_list) else None) for i in range(0, len(puantaj_list), 2)]
+    
+    if personel['ucret_tipi'] == 'Aylik':
+        hakedis = personel['ucret'] if toplam_gun >= ayin_gun_sayisi else (personel['ucret'] / ayin_gun_sayisi) * toplam_gun
+    else:
+        hakedis = personel['ucret'] * toplam_gun
+        
+    cursor.execute('SELECT * FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? ORDER BY tarih ASC', (personel_id, secili_donem))
+    avanslar = cursor.fetchall()
+    toplam_avans = sum([a['tutar'] for a in avanslar])
+    conn.close()
+    
+    return render_template_string(EKSTRE_HTML, personel=personel, secili_ay_str=datetime(yil, ay, 1).strftime('%B %Y'),
+                                  puantaj_rows=puantaj_rows, toplam_gun=toplam_gun, hakedis=hakedis, avanslar=avanslar,
+                                  toplam_avans=toplam_avans, kalan=hakedis - toplam_avans)
+
+@app.route('/personel-ekle', methods=['POST'])
+def personel_ekle():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO personeller (ad_soyad, gorev, ucret_tipi, ucret) VALUES (?, ?, ?, ?)',
+                   (request.form['ad_soyad'], request.form.get('gorev', ''), request.form.get('ucret_tipi', 'Gunluk'), float(request.form.get('ucret', 0))))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+@app.route('/avans-ekle', methods=['POST'])
+def avans_ekle():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO hareketler (personel_id, tarih, tip, tutar, aciklama) VALUES (?, ?, ?, ?, ?)',
+                   (request.form['personel_id'], request.form['tarih'], 'Avans', float(request.form['tutar']), request.form.get('aciklama', '')))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+@app.route('/gider-ekle', methods=['POST'])
+def gider_ekle():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO giderler (tarih, kategori, tutar, aciklama) VALUES (?, ?, ?, ?)',
+                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form['aciklama']))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+if __name__ == '__main__':
+    init_db()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
