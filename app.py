@@ -92,6 +92,11 @@ ANA_SAYFA_HTML = """
         .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
         .table th, .table td { padding: 10px 6px; vertical-align: middle; white-space: nowrap; }
         
+        /* 🔥 Pazar Günleri Arka Planı (Otomatik Kırmızı/Pembe Vurgu) */
+        .pazar-gunu {
+            background-color: #ffe6e6 !important;
+        }
+
         /* 🔥 İsim Sütununu Sağa Kaydırırken Sabitleme (Sticky Column) */
         .sticky-col {
             position: sticky;
@@ -158,8 +163,11 @@ ANA_SAYFA_HTML = """
                         <th class="text-start sticky-col" style="min-width: 140px; box-shadow: 2px 0 5px rgba(0,0,0,0.1);">Ad Soyad</th>
                         <th style="min-width: 60px;">Tip</th>
                         <th style="min-width: 70px;">Ücret</th>
-                        {% for gun in range(1, ayin_gun_sayisi + 1) %}
-                            <th style="min-width: 55px;">{{ gun }}</th>
+                        {% for gun_bilgi in takvim_gunleri %}
+                            <th style="min-width: 55px;" class="{% if gun_bilgi.haftanin_gunu == 'Paz' %}bg-danger text-white{% endif %}">
+                                <div style="font-size: 13px;">{{ gun_bilgi.gun }}</div>
+                                <div style="font-size: 10px; opacity: 0.85;">{{ gun_bilgi.haftanin_gunu }}</div>
+                            </th>
                         {% endfor %}
                         <th style="min-width: 60px;">Gün</th>
                         <th style="min-width: 85px;">Hakediş</th>
@@ -176,10 +184,10 @@ ANA_SAYFA_HTML = """
                         </td>
                         <td><span class="badge bg-{{ 'info text-dark' if p.ucret_tipi == 'Aylik' else 'secondary' }}" style="font-size:11px;">{{ 'Aylık' if p.ucret_tipi == 'Aylik' else 'Günlük' }}</span></td>
                         <td class="fw-bold">{{ "{:,.0f}".format(p.ucret) }}</td>
-                        {% for gun in range(1, ayin_gun_sayisi + 1) %}
-                            {% set tarih_str = "{}-{:02d}-{:02d}".format(yil, ay, gun) %}
+                        {% for gun_bilgi in takvim_gunleri %}
+                            {% set tarih_str = gun_bilgi.tarih_str %}
                             {% set p_info = p.puantaj_dict.get(tarih_str, {}) %}
-                            <td>
+                            <td class="{% if gun_bilgi.haftanin_gunu == 'Paz' %}pazar-gunu{% endif %}">
                                 <div class="puantaj-box">
                                     <input type="number" step="0.5" min="0" max="1" 
                                            value="{{ p_info.get('durum', '') }}" 
@@ -200,7 +208,7 @@ ANA_SAYFA_HTML = """
                         <td><a href="/personel-ekstre/{{ p.id }}?donem={{ secili_donem }}" target="_blank" class="btn btn-outline-dark btn-sm py-2 px-3 fw-bold" style="font-size:12px; height: auto;">📄Ekstre</a></td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="{{ ayin_gun_sayisi + 8 }}" class="text-center text-muted py-4">Henüz kayıtlı personel bulunmuyor.</td></tr>
+                    <tr><td colspan="{{ takvim_gunleri|length + 8 }}" class="text-center text-muted py-4">Henüz kayıtlı personel bulunmuyor.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -398,6 +406,18 @@ def ana_sayfa():
     yil, ay = map(int, secili_donem.split('-'))
     ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
     
+    # Günlerin yanına haftanın günlerini ekleme (Pzt, Sal, Çar, Per, Cum, Cmt, Paz)
+    gun_isimleri = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+    takvim_gunleri = []
+    for gun in range(1, ayin_gun_sayisi + 1):
+        dt = datetime(yil, ay, gun)
+        haftanin_gunu_index = dt.weekday() # 0: Pzt, 6: Paz
+        takvim_gunleri.append({
+            'gun': gun,
+            'haftanin_gunu': gun_isimleri[haftanin_gunu_index],
+            'tarih_str': f"{yil}-{ay:02d}-{gun:02d}"
+        })
+    
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM personeller')
@@ -431,7 +451,7 @@ def ana_sayfa():
     
     return render_template_string(ANA_SAYFA_HTML, personeller=personeller, secili_donem=secili_donem, 
                                   secili_ay_str=datetime(yil, ay, 1).strftime('%B %Y'), bugun=datetime.now().strftime('%Y-%m-%d'),
-                                  yil=yil, ay=ay, ayin_gun_sayisi=ayin_gun_sayisi, giderler=giderler, toplam_gider=toplam_gider)
+                                  yil=yil, ay=ay, ayin_gun_sayisi=ayin_gun_sayisi, takvim_gunleri=takvim_gunleri, giderler=giderler, toplam_gider=toplam_gider)
 
 @app.route('/api/puantaj-guncelle', methods=['POST'])
 def api_puantaj_guncelle():
@@ -520,12 +540,7 @@ def gider_ekle():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('INSERT INTO giderler (tarih, kategori, tutar, aciklama) VALUES (?, ?, ?, ?)',
-                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form['aciklama']))
+                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form.get('aciklama', '')))
     conn.commit()
     conn.close()
-    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
-
-if __name__ == '__main__':
-    init_db()
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    return redirect
