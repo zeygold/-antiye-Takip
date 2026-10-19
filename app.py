@@ -174,14 +174,12 @@ ANA_SAYFA_HTML = """
                 </thead>
                 <tbody>
                     {% for p in personeller %}
-                    <tr id="row_p_{{ p.id }}">
+                    <tr id="row_p_{{ p.id }}" data-ucret="{{ p.ucret }}" data-ucrettipi="{{ p.ucret_tipi }}" data-ayingunsayisi="{{ ayin_gun_sayisi }}">
                         <td class="text-start fw-bold sticky-col" style="box-shadow: 2px 0 5px rgba(0,0,0,0.1);">
                             {{ p.ad_soyad }}<br><span class="text-muted fw-normal small">{{ p.gorev }}</span>
                         </td>
                         <td><span class="badge bg-{{ 'info text-dark' if p.ucret_tipi == 'Aylik' else 'secondary' }}" style="font-size:11px;">{{ 'Aylık' if p.ucret_tipi == 'Aylik' else 'Günlük' }}</span></td>
-                        <td class="fw-bold" id="ucret_{{ p.id }}">{{ p.ucret }}</td>
-                        <input type="hidden" id="ucret_tipi_{{ p.id }}" value="{{ p.ucret_tipi }}">
-                        <input type="hidden" id="ayin_gun_sayisi_{{ p.id }}" value="{{ ayin_gun_sayisi }}">
+                        <td class="fw-bold">{{ "{:,.0f}".format(p.ucret) }}</td>
                         
                         {% for gb in takvim_gunleri %}
                             {% set tarih_str = gb.tarih_str %}
@@ -190,10 +188,9 @@ ANA_SAYFA_HTML = """
                                 <div class="puantaj-box">
                                     <input type="text" inputmode="decimal"
                                            value="{{ p_info.get('durum', '') }}" 
-                                           class="form-control puantaj-input p-in-{{ p.id }} {% if p_info.get('not_aciklama') %}has-note{% endif %}"
+                                           class="form-control puantaj-input p-input-val {% if p_info.get('not_aciklama') %}has-note{% endif %}"
                                            id="p_input_{{ p.id }}_{{ tarih_str }}"
                                            data-personelid="{{ p.id }}"
-                                           data-tarih="{{ tarih_str }}"
                                            oninput="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
                                     <button type="button" class="btn-note border-0 py-1" id="btn_not_{{ p.id }}_{{ tarih_str }}"
                                             onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}')">
@@ -294,17 +291,14 @@ var myModal;
 document.addEventListener("DOMContentLoaded", function() { myModal = new bootstrap.Modal(document.getElementById('notModal')); });
 
 function personeliGuncelleHesapla(personelId) {
-    var ucretElem = document.getElementById('ucret_' + personelId);
-    var ucretTipiElem = document.getElementById('ucret_tipi_' + personelId);
-    var ayinGunSayisiElem = document.getElementById('ayin_gun_sayisi_' + personelId);
+    var row = document.getElementById('row_p_' + personelId);
+    if(!row) return;
     
-    if(!ucretElem) return;
+    var ucret = parseFloat(row.getAttribute('data-ucret')) || 0;
+    var ucretTipi = row.getAttribute('data-ucrettipi');
+    var ayinGunSayisi = parseInt(row.getAttribute('data-ayingunsayisi')) || 30;
     
-    var ucret = parseFloat(ucretElem.innerText.replace(',', '.')) || 0;
-    var ucretTipi = ucretTipiElem.value;
-    var ayinGunSayisi = parseInt(ayinGunSayisiElem.value) || 30;
-    
-    var inputs = document.querySelectorAll('.p-in-' + personelId);
+    var inputs = row.querySelectorAll('.p-input-val');
     var toplamGun = 0;
     inputs.forEach(function(input) {
         var valStr = input.value.trim().replace(',', '.');
@@ -464,3 +458,80 @@ def ana_sayfa():
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM personeller')
     personeller_db = cursor.fetchall()
+    
+    personeller = []
+    for p in personeller_db:
+        cursor.execute('SELECT tarih, durum, not_aciklama FROM puantaj WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ?', (p['id'], secili_donem))
+        puantaj_rows = cursor.fetchall()
+        puantaj_dict = {row['tarih']: {'durum': row['durum'], 'not_aciklama': row['not_aciklama']} for row in puantaj_rows}
+        
+        p_gun = sum([float(val['durum']) for val in puantaj_dict.values() if val['durum'] is not None])
+        if p['ucret_tipi'] == 'Aylik':
+            hakedis = p['ucret'] if p_gun >= ayin_gun_sayisi else (p['ucret'] / ayin_gun_sayisi) * p_gun
+        else:
+            hakedis = p['ucret'] * p_gun
+            
+        cursor.execute('SELECT SUM(tutar) as toplam_avans FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? AND tip = "Avans"', (p['id'], secili_donem))
+        p_avans = cursor.fetchone()['toplam_avans'] or 0.0
+        
+        personeller.append({
+            'id': p['id'], 'ad_soyad': p['ad_soyad'], 'gorev': p['gorev'], 'ucret_tipi': p['ucret_tipi'],
+            'ucret': p['ucret'], 'puantaj_dict': puantaj_dict, 'toplam_gun': p_gun, 'hakedis': hakedis,
+            'toplam_avans': p_avans, 'kalan': hakedis - p_avans
+        })
+        
+    cursor.execute('SELECT * FROM giderler WHERE strftime("%Y-%m", tarih) = ? ORDER BY tarih DESC', (secili_donem,))
+    giderler = cursor.fetchall()
+    toplam_gider = sum([g['tutar'] for g in giderler])
+    conn.close()
+    
+    return render_template_string(ANA_SAYFA_HTML, personeller=personeller, secili_donem=secili_donem, 
+                                  secili_ay_str=datetime(yil, ay, 1).strftime('%B %Y'), bugun=datetime.now().strftime('%Y-%m-%d'),
+                                  yil=yil, ay=ay, ayin_gun_sayisi=ayin_gun_sayisi, takvim_gunleri=takvim_gunleri, giderler=giderler, toplam_gider=toplam_gider)
+
+@app.route('/api/puantaj-guncelle', methods=['POST'])
+def api_puantaj_guncelle():
+    data = request.json
+    p_id = data.get('personel_id')
+    tarih = data.get('tarih')
+    durum_raw = data.get('durum')
+    not_aciklama = data.get('not_aciklama')
+    
+    durum = None
+    if durum_raw is not None and str(durum_raw).strip() != '':
+        try:
+            durum = float(str(durum_raw).replace(',', '.'))
+        except ValueError:
+            pass
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (p_id, tarih))
+    row = cursor.fetchone()
+    
+    yeni_durum = durum if durum is not None else (row['durum'] if row else None)
+    yeni_not = not_aciklama if not_aciklama is not None else (row['not_aciklama'] if row else None)
+    
+    if yeni_durum is not None or yeni_not is not None:
+        cursor.execute('''
+            INSERT INTO puantaj (personel_id, tarih, durum, not_aciklama) VALUES (?, ?, ?, ?)
+            ON CONFLICT(personel_id, tarih) DO UPDATE SET durum=COALESCE(excluded.durum, puantaj.durum), not_aciklama=COALESCE(excluded.not_aciklama, puantaj.not_aciklama)
+        ''', (p_id, tarih, yeni_durum, yeni_not))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+@app.route('/personel-ekstre/<int:personel_id>')
+def personel_ekstre(personel_id):
+    secili_donem = request.args.get('donem', datetime.now().strftime('%Y-%m'))
+    yil, ay = map(int, secili_donem.split('-'))
+    ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM personeller WHERE id = ?', (personel_id,))
+    personel = cursor.fetchone()
+    
+    puantaj_list = []
+    toplam_gun = 0.0
+    for gun in range(
