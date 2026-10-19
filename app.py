@@ -29,8 +29,8 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             personel_id INTEGER,
             tarih TEXT,
-            durum REAL, -- 1.0: Tam Gün, 0.5: Yarım Gün, 0: Gelmedi
-            FOREIGN KEY (personel_id) REFERENCES personeller (id)
+            durum REAL,
+            UNIQUE(personel_id, tarih)
         )
     ''')
     cursor.execute('''
@@ -38,10 +38,9 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             personel_id INTEGER,
             tarih TEXT,
-            tip TEXT, -- 'Avans' veya 'Harcama'
+            tip TEXT,
             tutar REAL,
-            aciklama TEXT,
-            FOREIGN KEY (personel_id) REFERENCES personeller (id)
+            aciklama TEXT
         )
     ''')
     conn.commit()
@@ -56,24 +55,25 @@ HTML_TEMPLATE = '''
     <title>Şantiye & Personel Takip</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; font-size: 14px; }
-        .card { margin-bottom: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .table-responsive { font-size: 13px; }
+        body { background-color: #f8f9fa; font-size: 13px; }
+        .card { margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .puantaj-input { width: 45px; text-align: center; padding: 2px; font-size: 12px; }
+        .table-responsive { overflow-x: auto; }
     </style>
 </head>
 <body>
 <nav class="navbar navbar-dark bg-dark mb-3">
     <div class="container-fluid">
-        <a class="navbar-brand fw-bold" href="/">🏗️ Şantiye Takip</a>
+        <a class="navbar-brand fw-bold" href="/">🏗️ Şantiye & Personel Takip</a>
         <span class="navbar-text text-white small">{{ secili_ay_str }}</span>
     </div>
 </nav>
 
-<div class="container">
+<div class="container-fluid px-4">
     <!-- Dönem Seçimi -->
     <div class="card p-2 bg-white">
         <form method="GET" class="row g-2 align-items-center">
-            <div class="col-auto"><label class="fw-bold">Dönem:</label></div>
+            <div class="col-auto"><label class="fw-bold">Dönem Seçimi:</label></div>
             <div class="col-auto">
                 <input type="month" name="donem" value="{{ secili_donem }}" class="form-control form-control-sm" onchange="this.form.submit()">
             </div>
@@ -84,7 +84,8 @@ HTML_TEMPLATE = '''
     <div class="card p-3">
         <h6 class="fw-bold border-bottom pb-2">➕ Yeni Personel / İşçi Ekle</h6>
         <form action="/personel-ekle" method="POST" class="row g-2">
-            <div class="col-md-4">
+            <input type="hidden" name="donem" value="{{ secili_donem }}">
+            <div class="col-md-3">
                 <input type="text" name="ad_soyad" class="form-control form-control-sm" placeholder="Ad Soyad" required>
             </div>
             <div class="col-md-3">
@@ -99,56 +100,70 @@ HTML_TEMPLATE = '''
             <div class="col-md-2">
                 <input type="number" step="0.01" name="ucret" class="form-control form-control-sm" placeholder="Tutar (TL)" required>
             </div>
-            <div class="col-md-1">
+            <div class="col-md-2">
                 <button type="submit" class="btn btn-primary btn-sm w-100">Kaydet</button>
             </div>
         </form>
     </div>
 
-    <!-- Personel Listesi ve Hakediş Tablosu -->
+    <!-- Puantaj & Hakediş Tablosu -->
     <div class="card p-3">
-        <h6 class="fw-bold border-bottom pb-2">📋 Personel Özet ve Hakediş Durumu</h6>
-        <div class="table-responsive">
-            <table class="table table-bordered table-striped align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Ad Soyad</th>
-                        <th>Görev</th>
-                        <th>Ücret Tipi</th>
-                        <th>Birim Ücret</th>
-                        <th>Çalışılan Gün</th>
-                        <th>Hakediş</th>
-                        <th>Avans / Ödeme</th>
-                        <th>Kalan Bakiye</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in personeller %}
-                    <tr>
-                        <td><strong>{{ p.ad_soyad }}</strong></td>
-                        <td>{{ p.gorev }}</td>
-                        <td>
-                            {% if p.ucret_tipi == 'Aylik' %}
-                                <span class="badge bg-info text-dark">Aylık Maaş</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Günlük Yevmiye</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ "{:,.2f}".format(p.ucret) }} TL</td>
-                        <td>{{ p.toplam_gun }} gün</td>
-                        <td class="text-success fw-bold">{{ "{:,.2f}".format(p.hakedis) }} TL</td>
-                        <td class="text-danger">{{ "{:,.2f}".format(p.toplam_avans) }} TL</td>
-                        <td class="fw-bold {% if p.kalan > 0 %}text-warning{% else %}text-muted{% endif %}">
-                            {{ "{:,.2f}".format(p.kalan) }} TL
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        <h6 class="fw-bold border-bottom pb-2">📅 Aylık Puantaj ve Hakediş Tablosu</h6>
+        <form action="/puantaj-kaydet" method="POST">
+            <input type="hidden" name="donem" value="{{ secili_donem }}">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle text-center">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="min-width: 150px;">Ad Soyad</th>
+                            <th>Ücret Tipi</th>
+                            <th>Birim Ücret</th>
+                            {% for gun in range(1, ayin_gun_sayisi + 1) %}
+                                <th style="min-width: 45px;">{{ gun }}</th>
+                            {% endfor %}
+                            <th>Çalışılan</th>
+                            <th>Hakediş</th>
+                            <th>Avans</th>
+                            <th>Kalan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in personeller %}
+                        <tr>
+                            <td class="text-start fw-bold">{{ p.ad_soyad }} <br><small class="text-muted">{{ p.gorev }}</small></td>
+                            <td>
+                                {% if p.ucret_tipi == 'Aylik' %}
+                                    <span class="badge bg-info text-dark">Aylık</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Günlük</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ "{:,.0f}".format(p.ucret) }} TL</td>
+                            {% for gun in range(1, ayin_gun_sayisi + 1) %}
+                                {% set tarih_str = "{}-{:02d}-{:02d}".format(yil, ay, gun) %}
+                                <td>
+                                    <input type="number" step="0.5" min="0" max="1" 
+                                           name="puantaj_{{ p.id }}_{{ tarih_str }}" 
+                                           value="{{ p.puantaj_dict.get(tarih_str, '') }}" 
+                                           class="form-control form-control-sm puantaj-input">
+                                </td>
+                            {% endfor %}
+                            <td class="fw-bold">{{ p.toplam_gun }} gün</td>
+                            <td class="text-success fw-bold">{{ "{:,.2f}".format(p.hakedis) }} TL</td>
+                            <td class="text-danger">{{ "{:,.2f}".format(p.toplam_avans) }} TL</td>
+                            <td class="fw-bold text-primary">{{ "{:,.2f}".format(p.kalan) }} TL</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="text-end mt-2">
+                <button type="submit" class="btn btn-success btn-sm px-4 fw-bold">💾 Puantaj Değişikliklerini Kaydet</button>
+            </div>
+        </form>
     </div>
 
-    <!-- Hızlı Avans / Ödeme Ekleme -->
+    <!-- Avans / Ödeme Girişi -->
     <div class="card p-3">
         <h6 class="fw-bold border-bottom pb-2">💸 Avans / Ödeme Girişi</h6>
         <form action="/avans-ekle" method="POST" class="row g-2">
@@ -194,21 +209,24 @@ def ana_sayfa():
     
     personeller = []
     for p in personeller_db:
-        # Puantaj verisi
+        # Puantaj detayları
         cursor.execute('''
-            SELECT SUM(durum) as toplam_gun FROM puantaj 
+            SELECT tarih, durum FROM puantaj 
             WHERE personel_id = ? AND strftime('%Y-%m', tarih) = ?
         ''', (p['id'], secili_donem))
-        p_gun = cursor.fetchone()['toplam_gun'] or 0.0
+        puantaj_rows = cursor.fetchall()
+        puantaj_dict = {row['tarih']: (row['durum'] if row['durum'] is not None else '') for row in puantaj_rows}
+        
+        p_gun = sum([float(val) for val in puantaj_dict.values() if val != ''])
         
         # Hakediş Hesabı
         if p['ucret_tipi'] == 'Aylik':
             if p_gun >= ayin_gun_sayisi:
-                hakedis = p['ucret'] # Tam ay çalıştıysa direkt tam maaş
+                hakedis = p['ucret']
             else:
-                hakedis = (p['ucret'] / ayin_gun_sayisi) * p_gun # Eksik günü oranla
+                hakedis = (p['ucret'] / ayin_gun_sayisi) * p_gun
         else:
-            hakedis = p['ucret'] * p_gun # Günlük Yevmiye
+            hakedis = p['ucret'] * p_gun
             
         # Avans verisi
         cursor.execute('''
@@ -223,6 +241,7 @@ def ana_sayfa():
             'gorev': p['gorev'],
             'ucret_tipi': p['ucret_tipi'],
             'ucret': p['ucret'],
+            'puantaj_dict': puantaj_dict,
             'toplam_gun': p_gun,
             'hakedis': hakedis,
             'toplam_avans': p_avans,
@@ -238,7 +257,10 @@ def ana_sayfa():
                                   personeller=personeller, 
                                   secili_donem=secili_donem, 
                                   secili_ay_str=secili_ay_str,
-                                  bugun=bugun)
+                                  bugun=bugun,
+                                  yil=yil,
+                                  ay=ay,
+                                  ayin_gun_sayisi=ayin_gun_sayisi)
 
 @app.route('/personel-ekle', methods=['POST'])
 def personel_ekle():
@@ -246,6 +268,7 @@ def personel_ekle():
     gorev = request.form.get('gorev', '')
     ucret_tipi = request.form.get('ucret_tipi', 'Gunluk')
     ucret = float(request.form.get('ucret', 0))
+    donem = request.form.get('donem', datetime.now().strftime('%Y-%m'))
     
     conn = get_db()
     cursor = conn.cursor()
@@ -253,7 +276,33 @@ def personel_ekle():
                    (ad_soyad, gorev, ucret_tipi, ucret))
     conn.commit()
     conn.close()
-    return redirect(url_for('ana_sayfa'))
+    return redirect(url_for('ana_sayfa', donem=donem))
+
+@app.route('/puantaj-kaydet', methods=['POST'])
+def puantaj_kaydet():
+    donem = request.form.get('donem', datetime.now().strftime('%Y-%m'))
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    for key, val in request.form.items():
+        if key.startswith('puantaj_'):
+            parts = key.split('_')
+            personel_id = parts[1]
+            tarih = parts[2]
+            
+            if val != '':
+                durum = float(val)
+                cursor.execute('''
+                    INSERT INTO puantaj (personel_id, tarih, durum)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(personel_id, tarih) DO UPDATE SET durum=excluded.durum
+                ''', (personel_id, tarih, durum))
+            else:
+                cursor.execute('DELETE FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih))
+                
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=donem))
 
 @app.route('/avans-ekle', methods=['POST'])
 def avans_ekle():
