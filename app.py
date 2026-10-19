@@ -103,7 +103,6 @@ ANA_SAYFA_HTML = """
 </nav>
 
 <div class="container-fluid">
-    <!-- Dönem Seçimi -->
     <div class="card">
         <form method="GET" class="row g-2 align-items-center m-0">
             <div class="col-4 p-0"><label class="fw-bold fs-6">📅 Dönem:</label></div>
@@ -113,7 +112,6 @@ ANA_SAYFA_HTML = """
         </form>
     </div>
 
-    <!-- Personel Ekleme -->
     <div class="card">
         <h5 class="fw-bold border-bottom pb-2 mb-3 text-primary">➕ Yeni Personel Ekle</h5>
         <form action="/personel-ekle" method="POST" class="row g-3">
@@ -131,7 +129,6 @@ ANA_SAYFA_HTML = """
         </form>
     </div>
 
-    <!-- Puantaj Tablosu -->
     <div class="card">
         <h5 class="fw-bold border-bottom pb-2 mb-3 text-dark">📊 Puantaj & Hakediş Tablosu</h5>
         <div class="table-responsive">
@@ -188,7 +185,6 @@ ANA_SAYFA_HTML = """
         </div>
     </div>
 
-    <!-- Avans / Ödeme Girişi -->
     <div class="card">
         <h5 class="fw-bold border-bottom pb-2 mb-3 text-danger">💸 Avans / Ödeme Girişi</h5>
         <form action="/avans-ekle" method="POST" class="row g-3">
@@ -206,7 +202,6 @@ ANA_SAYFA_HTML = """
         </form>
     </div>
 
-    <!-- Şantiye Günlük Gider Girişi -->
     <div class="card">
         <h5 class="fw-bold border-bottom pb-2 mb-3 text-warning text-dark">🏗️ Şantiye Günlük Gider Girişi</h5>
         <form action="/gider-ekle" method="POST" class="row g-3">
@@ -228,7 +223,6 @@ ANA_SAYFA_HTML = """
         </form>
     </div>
 
-    <!-- Şantiye Gider Özeti -->
     <div class="card mb-5">
         <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
             <h5 class="fw-bold m-0 text-dark">🛒 Bu Ayki Giderler</h5>
@@ -286,8 +280,6 @@ function otomatikKaydet(personelId, tarih, notVal = null) {
 function modalNotAc(pId, tarih) {
     document.getElementById('modal_p_id').value = pId;
     document.getElementById('modal_tarih').value = tarih;
-    var inputElem = document.getElementById('p_input_' + pId + '_' + tarih);
-    // Mevcut notu input başlığından veya önbellekten alabilmek için fetch yapabiliriz ya da direkt kutudan okuyabiliriz
     document.getElementById('modal_not_text').value = '';
     myModal.show();
 }
@@ -298,7 +290,6 @@ function modalNotKaydet() {
     var text = document.getElementById('modal_not_text').value;
     myModal.hide();
     
-    // Not butonunun yazısını güncelle
     var btn = document.getElementById('btn_not_' + pId + '_' + tarih);
     if(text.trim() !== '') {
         btn.innerText = '📍Not';
@@ -496,3 +487,23 @@ def personel_ekle():
 def avans_ekle():
     conn = get_db()
     cursor = conn.cursor()
+    cursor.execute('INSERT INTO hareketler (personel_id, tarih, tip, tutar, aciklama) VALUES (?, ?, ?, ?, ?)',
+                   (request.form['personel_id'], request.form['tarih'], 'Avans', float(request.form['tutar']), request.form.get('aciklama', '')))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+@app.route('/gider-ekle', methods=['POST'])
+def gider_ekle():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO giderler (tarih, kategori, tutar, aciklama) VALUES (?, ?, ?, ?)',
+                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form['aciklama']))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+if __name__ == '__main__':
+    init_db()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
