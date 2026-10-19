@@ -387,7 +387,11 @@ EKSTRE_HTML = r"""
     <style>
         body { background-color: #fff; font-size: 13px; color: #000; } 
         .ekstre-box { max-width: 800px; margin: 15px auto; padding: 20px; } 
-        @media print { .no-print { display: none !important; } }
+        .pazar-satir { background-color: #ffe6e6 !important; }
+        @media print { 
+            .no-print { display: none !important; } 
+            .pazar-satir { background-color: #ffe6e6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
     </style>
 </head>
 <body>
@@ -411,22 +415,26 @@ EKSTRE_HTML = r"""
                 <tr>
                     <th>Tarih</th>
                     <th>Gün</th>
+                    <th>Durum</th>
                     <th>Şantiye / Not</th>
                     <th class="border-start">Tarih</th>
                     <th>Gün</th>
+                    <th>Durum</th>
                     <th>Şantiye / Not</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in cift_sutun_rows %}
                 <tr>
-                    <td class="fw-bold bg-light">{{ row.sol.tarih if row.sol else '' }}</td>
-                    <td>{{ row.sol.durum if row.sol and row.sol.durum != '' else ('-' if row.sol else '') }}</td>
-                    <td class="text-start">{{ row.sol.not_aciklama if row.sol else '' }}</td>
+                    <td class="fw-bold {{ 'pazar-satir text-danger' if row.sol and row.sol.is_pazar else 'bg-light' }}">{{ row.sol.tarih if row.sol else '' }}</td>
+                    <td class="{{ 'pazar-satir text-danger fw-bold' if row.sol and row.sol.is_pazar else '' }}">{{ row.sol.gun_str if row.sol else '' }}</td>
+                    <td class="{{ 'pazar-satir text-danger fw-bold' if row.sol and row.sol.is_pazar else '' }}">{{ row.sol.durum if row.sol and row.sol.durum != '' else ('-' if row.sol else '') }}</td>
+                    <td class="text-start {{ 'pazar-satir' if row.sol and row.sol.is_pazar else '' }}">{{ row.sol.not_aciklama if row.sol else '' }}</td>
                     
-                    <td class="fw-bold bg-light border-start">{{ row.sag.tarih if row.sag else '' }}</td>
-                    <td>{{ row.sag.durum if row.sag and row.sag.durum != '' else ('-' if row.sag else '') }}</td>
-                    <td class="text-start">{{ row.sag.not_aciklama if row.sag else '' }}</td>
+                    <td class="fw-bold border-start {{ 'pazar-satir text-danger' if row.sag and row.sag.is_pazar else 'bg-light' }}">{{ row.sag.tarih if row.sag else '' }}</td>
+                    <td class="{{ 'pazar-satir text-danger fw-bold' if row.sag and row.sag.is_pazar else '' }}">{{ row.sag.gun_str if row.sag else '' }}</td>
+                    <td class="{{ 'pazar-satir text-danger fw-bold' if row.sag and row.sag.is_pazar else '' }}">{{ row.sag.durum if row.sag and row.sag.durum != '' else ('-' if row.sag else '') }}</td>
+                    <td class="text-start {{ 'pazar-satir' if row.sag and row.sag.is_pazar else '' }}">{{ row.sag.not_aciklama if row.sag else '' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -466,14 +474,13 @@ def ana_sayfa():
     yil, ay = map(int, secili_donem.split('-'))
     ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
     
-    # Pazar günleri hariç iş günü sayısını hesapla
     is_gunu_sayisi = 0
     gun_kisaltmalari = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
     takvim_gunleri = []
     for gun in range(1, ayin_gun_sayisi + 1):
         dt = datetime(yil, ay, gun)
         index = dt.weekday()
-        if index != 6:  # Pazar değilse iş günü
+        if index != 6:
             is_gunu_sayisi += 1
         takvim_gunleri.append({
             'gun_no': gun,
@@ -568,16 +575,23 @@ def personel_ekstre(personel_id):
     cursor.execute('SELECT * FROM personeller WHERE id = ?', (personel_id,))
     personel = cursor.fetchone()
     
+    gun_isimleri = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
     puantaj_list = []
     toplam_gun = 0.0
     for gun in range(1, ayin_gun_sayisi + 1):
-        tarih_str = f"{yil}-{ay:02d}-{gun:02d}"
+        dt = datetime(yil, ay, gun)
+        tarih_str = dt.strftime('%Y-%m-%d')
+        gun_str = gun_isimleri[dt.weekday()]
+        is_pazar = (dt.weekday() == 6)
+        
         cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih_str))
         row = cursor.fetchone()
         durum = row['durum'] if row and row['durum'] is not None else 0.0
         toplam_gun += durum
         puantaj_list.append({
-            'tarih': tarih_str, 
+            'tarih': tarih_str,
+            'gun_str': gun_str,
+            'is_pazar': is_pazar,
             'durum': str(row['durum']) if row and row['durum'] is not None else '', 
             'not_aciklama': row['not_aciklama'] if row and row['not_aciklama'] is not None else ''
         })
