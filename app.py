@@ -43,6 +43,15 @@ def init_db():
             aciklama TEXT
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS giderler (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tarih TEXT,
+            kategori TEXT,
+            tutar REAL,
+            aciklama TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -125,6 +134,7 @@ HTML_TEMPLATE = '''
                             <th>Hakediş</th>
                             <th>Avans</th>
                             <th>Kalan</th>
+                            <th>İşlem</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -152,6 +162,9 @@ HTML_TEMPLATE = '''
                             <td class="text-success fw-bold">{{ "{:,.2f}".format(p.hakedis) }} TL</td>
                             <td class="text-danger">{{ "{:,.2f}".format(p.toplam_avans) }} TL</td>
                             <td class="fw-bold text-primary">{{ "{:,.2f}".format(p.kalan) }} TL</td>
+                            <td>
+                                <a href="/personel-ekstre/{{ p.id }}?donem={{ secili_donem }}" target="_blank" class="btn btn-outline-dark btn-sm">📄 Ekstre</a>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -163,164 +176,91 @@ HTML_TEMPLATE = '''
         </form>
     </div>
 
-    <!-- Avans / Ödeme Girişi -->
-    <div class="card p-3">
-        <h6 class="fw-bold border-bottom pb-2">💸 Avans / Ödeme Girişi</h6>
-        <form action="/avans-ekle" method="POST" class="row g-2">
-            <input type="hidden" name="donem" value="{{ secili_donem }}">
-            <div class="col-md-3">
-                <select name="personel_id" class="form-select form-select-sm" required>
-                    <option value="">Personel Seçin...</option>
-                    {% for p in personeller %}
-                    <option value="{{ p.id }}">{{ p.ad_soyad }}</option>
-                    {% endfor %}
-                </select>
+    <!-- Avans & Şantiye Giderleri Yan Yana -->
+    <div class="row">
+        <!-- Avans Girişi -->
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h6 class="fw-bold border-bottom pb-2">💸 Avans / Ödeme Girişi</h6>
+                <form action="/avans-ekle" method="POST" class="row g-2">
+                    <input type="hidden" name="donem" value="{{ secili_donem }}">
+                    <div class="col-md-6">
+                        <select name="personel_id" class="form-select form-select-sm" required>
+                            <option value="">Personel Seçin...</option>
+                            {% for p in personeller %}
+                            <option value="{{ p.id }}">{{ p.ad_soyad }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="date" name="tarih" class="form-control form-control-sm" value="{{ bugun }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="number" step="0.01" name="tutar" class="form-control form-control-sm" placeholder="Tutar (TL)" required>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="text" name="aciklama" class="form-control form-control-sm" placeholder="Açıklama (Örn: Banka)">
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-danger btn-sm w-100">Avans Ödemesi Kaydet</button>
+                    </div>
+                </form>
             </div>
-            <div class="col-md-2">
-                <input type="date" name="tarih" class="form-control form-control-sm" value="{{ bugun }}" required>
+        </div>
+
+        <!-- Şantiye Giderleri -->
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h6 class="fw-bold border-bottom pb-2">🏗️ Şantiye Günlük Gider Girişi</h6>
+                <form action="/gider-ekle" method="POST" class="row g-2">
+                    <input type="hidden" name="donem" value="{{ secili_donem }}">
+                    <div class="col-md-6">
+                        <select name="kategori" class="form-select form-select-sm" required>
+                            <option value="Malzeme / Nalbur">Malzeme / Nalbur</option>
+                            <option value="Akaryakıt">Akaryakıt</option>
+                            <option value="Yemek / Mutfak">Yemek / Mutfak</option>
+                            <option value="Nakliye / Lojistik">Nakliye / Lojistik</option>
+                            <option value="Alet / Kiralama">Alet / Kiralama</option>
+                            <option value="Diğer Harcamalar">Diğer Harcamalar</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="date" name="tarih" class="form-control form-control-sm" value="{{ bugun }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="number" step="0.01" name="tutar" class="form-control form-control-sm" placeholder="Gider Tutarı (TL)" required>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="text" name="aciklama" class="form-control form-control-sm" placeholder="Açıklama (Örn: 10 torba çimento)" required>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-warning btn-sm w-100 fw-bold">Şantiye Gideri Ekle</button>
+                    </div>
+                </form>
             </div>
-            <div class="col-md-2">
-                <input type="number" step="0.01" name="tutar" class="form-control form-control-sm" placeholder="Tutar (TL)" required>
-            </div>
-            <div class="col-md-3">
-                <input type="text" name="aciklama" class="form-control form-control-sm" placeholder="Açıklama (Örn: Banka havalesi)">
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-danger btn-sm w-100">Ödeme Ekle</button>
-            </div>
-        </form>
+        </div>
     </div>
-</div>
-</body>
-</html>
-'''
 
-@app.route('/')
-def ana_sayfa():
-    secili_donem = request.args.get('donem', datetime.now().strftime('%Y-%m'))
-    yil, ay = map(int, secili_donem.split('-'))
-    ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM personeller')
-    personeller_db = cursor.fetchall()
-    
-    personeller = []
-    for p in personeller_db:
-        # Puantaj detayları
-        cursor.execute('''
-            SELECT tarih, durum FROM puantaj 
-            WHERE personel_id = ? AND strftime('%Y-%m', tarih) = ?
-        ''', (p['id'], secili_donem))
-        puantaj_rows = cursor.fetchall()
-        puantaj_dict = {row['tarih']: (row['durum'] if row['durum'] is not None else '') for row in puantaj_rows}
-        
-        p_gun = sum([float(val) for val in puantaj_dict.values() if val != ''])
-        
-        # Hakediş Hesabı
-        if p['ucret_tipi'] == 'Aylik':
-            if p_gun >= ayin_gun_sayisi:
-                hakedis = p['ucret']
-            else:
-                hakedis = (p['ucret'] / ayin_gun_sayisi) * p_gun
-        else:
-            hakedis = p['ucret'] * p_gun
-            
-        # Avans verisi
-        cursor.execute('''
-            SELECT SUM(tutar) as toplam_avans FROM hareketler 
-            WHERE personel_id = ? AND strftime('%Y-%m', tarih) = ? AND tip = 'Avans'
-        ''', (p['id'], secili_donem))
-        p_avans = cursor.fetchone()['toplam_avans'] or 0.0
-        
-        personeller.append({
-            'id': p['id'],
-            'ad_soyad': p['ad_soyad'],
-            'gorev': p['gorev'],
-            'ucret_tipi': p['ucret_tipi'],
-            'ucret': p['ucret'],
-            'puantaj_dict': puantaj_dict,
-            'toplam_gun': p_gun,
-            'hakedis': hakedis,
-            'toplam_avans': p_avans,
-            'kalan': hakedis - p_avans
-        })
-        
-    conn.close()
-    
-    secili_ay_str = datetime(yil, ay, 1).strftime('%B %Y')
-    bugun = datetime.now().strftime('%Y-%m-%d')
-    
-    return render_template_string(HTML_TEMPLATE, 
-                                  personeller=personeller, 
-                                  secili_donem=secili_donem, 
-                                  secili_ay_str=secili_ay_str,
-                                  bugun=bugun,
-                                  yil=yil,
-                                  ay=ay,
-                                  ayin_gun_sayisi=ayin_gun_sayisi)
-
-@app.route('/personel-ekle', methods=['POST'])
-def personel_ekle():
-    ad_soyad = request.form['ad_soyad']
-    gorev = request.form.get('gorev', '')
-    ucret_tipi = request.form.get('ucret_tipi', 'Gunluk')
-    ucret = float(request.form.get('ucret', 0))
-    donem = request.form.get('donem', datetime.now().strftime('%Y-%m'))
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO personeller (ad_soyad, gorev, ucret_tipi, ucret) VALUES (?, ?, ?, ?)',
-                   (ad_soyad, gorev, ucret_tipi, ucret))
-    conn.commit()
-    conn.close()
-    return redirect(url_for('ana_sayfa', donem=donem))
-
-@app.route('/puantaj-kaydet', methods=['POST'])
-def puantaj_kaydet():
-    donem = request.form.get('donem', datetime.now().strftime('%Y-%m'))
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    for key, val in request.form.items():
-        if key.startswith('puantaj_'):
-            parts = key.split('_')
-            personel_id = parts[1]
-            tarih = parts[2]
-            
-            if val != '':
-                durum = float(val)
-                cursor.execute('''
-                    INSERT INTO puantaj (personel_id, tarih, durum)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(personel_id, tarih) DO UPDATE SET durum=excluded.durum
-                ''', (personel_id, tarih, durum))
-            else:
-                cursor.execute('DELETE FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih))
-                
-    conn.commit()
-    conn.close()
-    return redirect(url_for('ana_sayfa', donem=donem))
-
-@app.route('/avans-ekle', methods=['POST'])
-def avans_ekle():
-    personel_id = request.form['personel_id']
-    tarih = request.form['tarih']
-    tutar = float(request.form['tutar'])
-    aciklama = request.form.get('aciklama', '')
-    donem = request.form.get('donem', datetime.now().strftime('%Y-%m'))
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO hareketler (personel_id, tarih, tip, tutar, aciklama) VALUES (?, ?, ?, ?, ?)',
-                   (personel_id, tarih, 'Avans', tutar, aciklama))
-    conn.commit()
-    conn.close()
-    return redirect(url_for('ana_sayfa', donem=donem))
-
-if __name__ == '__main__':
-    init_db()
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    <!-- Şantiye Gider Özeti -->
+    <div class="card p-3">
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
+            <h6 class="fw-bold m-0">🛒 Bu Ayki Şantiye Giderleri Listesi</h6>
+            <span class="badge bg-danger fs-6">Toplam Gider: {{ "{:,.2f}".format(toplam_gider) }} TL</span>
+        </div>
+        <div class="table-responsive mt-2">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Kategori</th>
+                        <th>Açıklama</th>
+                        <th class="text-end">Tutar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in giderler %}
+                    <tr>
+                        <td>{{ g.tarih }}</td>
+                        <td><span class="badge bg-secondary">{{ g.kategori }}</span></td>
+                        <td>{{ g.aciklama }}</td>
+                        <td
