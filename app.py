@@ -174,12 +174,15 @@ ANA_SAYFA_HTML = """
                 </thead>
                 <tbody>
                     {% for p in personeller %}
-                    <tr id="row_p_{{ p.id }}" data-ucret="{{ p.ucret }}" data-ucrettipi="{{ p.ucret_tipi }}" data-ayingunsayisi="{{ ayin_gun_sayisi }}">
+                    <tr id="row_p_{{ p.id }}">
                         <td class="text-start fw-bold sticky-col" style="box-shadow: 2px 0 5px rgba(0,0,0,0.1);">
                             {{ p.ad_soyad }}<br><span class="text-muted fw-normal small">{{ p.gorev }}</span>
                         </td>
                         <td><span class="badge bg-{{ 'info text-dark' if p.ucret_tipi == 'Aylik' else 'secondary' }}" style="font-size:11px;">{{ 'Aylık' if p.ucret_tipi == 'Aylik' else 'Günlük' }}</span></td>
-                        <td class="fw-bold">{{ "{:,.0f}".format(p.ucret) }}</td>
+                        <td class="fw-bold" id="ucret_{{ p.id }}">{{ p.ucret }}</td>
+                        <input type="hidden" id="ucret_tipi_{{ p.id }}" value="{{ p.ucret_tipi }}">
+                        <input type="hidden" id="ayin_gun_sayisi_{{ p.id }}" value="{{ ayin_gun_sayisi }}">
+                        
                         {% for gb in takvim_gunleri %}
                             {% set tarih_str = gb.tarih_str %}
                             {% set p_info = p.puantaj_dict.get(tarih_str, {}) %}
@@ -187,9 +190,10 @@ ANA_SAYFA_HTML = """
                                 <div class="puantaj-box">
                                     <input type="text" inputmode="decimal"
                                            value="{{ p_info.get('durum', '') }}" 
-                                           class="form-control puantaj-input p-input-val {% if p_info.get('not_aciklama') %}has-note{% endif %}"
+                                           class="form-control puantaj-input p-in-{{ p.id }} {% if p_info.get('not_aciklama') %}has-note{% endif %}"
                                            id="p_input_{{ p.id }}_{{ tarih_str }}"
                                            data-personelid="{{ p.id }}"
+                                           data-tarih="{{ tarih_str }}"
                                            oninput="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
                                     <button type="button" class="btn-note border-0 py-1" id="btn_not_{{ p.id }}_{{ tarih_str }}"
                                             onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}')">
@@ -290,14 +294,17 @@ var myModal;
 document.addEventListener("DOMContentLoaded", function() { myModal = new bootstrap.Modal(document.getElementById('notModal')); });
 
 function personeliGuncelleHesapla(personelId) {
-    var row = document.getElementById('row_p_' + personelId);
-    if(!row) return;
+    var ucretElem = document.getElementById('ucret_' + personelId);
+    var ucretTipiElem = document.getElementById('ucret_tipi_' + personelId);
+    var ayinGunSayisiElem = document.getElementById('ayin_gun_sayisi_' + personelId);
     
-    var ucret = parseFloat(row.getAttribute('data-ucret')) || 0;
-    var ucretTipi = row.getAttribute('data-ucrettipi');
-    var ayinGunSayisi = parseInt(row.getAttribute('data-ayingunsayisi')) || 30;
+    if(!ucretElem) return;
     
-    var inputs = row.querySelectorAll('.p-input-val');
+    var ucret = parseFloat(ucretElem.innerText.replace(',', '.')) || 0;
+    var ucretTipi = ucretTipiElem.value;
+    var ayinGunSayisi = parseInt(ayinGunSayisiElem.value) || 30;
+    
+    var inputs = document.querySelectorAll('.p-in-' + personelId);
     var toplamGun = 0;
     inputs.forEach(function(input) {
         var valStr = input.value.trim().replace(',', '.');
@@ -403,4 +410,57 @@ EKSTRE_HTML = """
             <tr>
                 <td>{{ row[0].tarih }}</td><td>{{ 'Tam (1.0)' if row[0].durum == 1.0 else ('Yarım (0.5)' if row[0].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start fw-bold">{{ row[0].not_aciklama or '-' }}</td>
                 {% if row[1] %}
-                <td>{{
+                <td>{{ row[1].tarih }}</td><td>{{ 'Tam (1.0)' if row[1].durum == 1.0 else ('Yarım (0.5)' if row[1].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start fw-bold">{{ row[1].not_aciklama or '-' }}</td>
+                {% else %}<td>-</td><td>-</td><td>-</td>{% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <h5 class="fw-bold border-bottom pb-2 mb-3">💸 Avans ve Ödeme Kayıtları</h5>
+    <table class="table table-striped mb-4">
+        <thead><tr><th>Tarih</th><th>Açıklama</th><th class="text-end">Tutar</th></tr></thead>
+        <tbody>
+            {% for a in avanslar %}
+            <tr><td>{{ a.tarih }}</td><td>{{ a.aciklama or 'Avans' }}</td><td class="text-end fw-bold text-danger">{{ "{:,.2f}".format(a.tutar) }} TL</td></tr>
+            {% else %}<tr><td colspan="3" class="text-center text-muted">Kayıtlı ödeme bulunmuyor.</td></tr>{% endfor %}
+            <tr class="table-light fw-bold"><td colspan="2" class="text-end">Toplam Ödenen:</td><td class="text-end text-danger fw-bold">{{ "{:,.2f}".format(toplam_avans) }} TL</td></tr>
+        </tbody>
+    </table>
+    <div class="row mt-5 text-center">
+        <div class="col-6"><p class="mb-5 fw-bold">Teslim Eden (Şantiye Yetkilisi)</p><p>İmza: .......................................</p></div>
+        <div class="col-6"><p class="mb-5 fw-bold">Teslim Alan (Personel)</p><p>İmza: .......................................</p></div>
+    </div>
+</div>
+</body>
+</html>
+"""
+
+@app.route('/manifest.json')
+def manifest():
+    return jsonify({
+        "name": "Şantiye & Personel Takip", "short_name": "Şantiye Takip", "start_url": "/", "display": "standalone",
+        "background_color": "#212529", "theme_color": "#212529",
+        "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/1048/1048953.png", "sizes": "512x512", "type": "image/png"}]
+    })
+
+@app.route('/')
+def ana_sayfa():
+    secili_donem = request.args.get('donem', datetime.now().strftime('%Y-%m'))
+    yil, ay = map(int, secili_donem.split('-'))
+    ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
+    
+    gun_kisaltmalari = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+    takvim_gunleri = []
+    for gun in range(1, ayin_gun_sayisi + 1):
+        dt = datetime(yil, ay, gun)
+        index = dt.weekday()
+        takvim_gunleri.append({
+            'gun_no': gun,
+            'gun_str': gun_kisaltmalari[index],
+            'tarih_str': f"{yil}-{ay:02d}-{gun:02d}"
+        })
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM personeller')
+    personeller_db = cursor.fetchall()
