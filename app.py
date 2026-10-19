@@ -371,7 +371,7 @@ function modalNotKaydet() {
 </html>
 """
 
-EKSTRE_HTML = """
+EKSTRE_HTML = r"""
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -386,4 +386,24 @@ EKSTRE_HTML = """
     </style>
 </head>
 <body>
-<div class="container text-center my-3 no-print"><button onclick="
+<div class="container text-center my-3 no-print"><button onclick="window.print()" class="btn btn-primary fw-bold">🖨️ Sayfayı Yazdır / PDF Kaydet</button></div>
+<div class="ekstre-box">
+    <div class="d-flex justify-content-between border-bottom pb-3 mb-4">
+        <div><h3 class="fw-bold m-0 fs-4">🏗️ PERSONEL HESAP EKSTRESİ</h3><small class="text-muted">Dönem: {{ secili_ay_str }}</small></div>
+        <div class="text-end"><h5 class="fw-bold mb-0">{{ personel.ad_soyad }}</h5><small>{{ personel.gorev }}</small></div>
+    </div>
+    <div class="row text-center mb-4 g-2">
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Birim</small><div class="fw-bold fs-6">{{ "{:,.0f}".format(personel.ucret) }} TL</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Çalışılan</small><div class="fw-bold fs-6">{{ toplam_gun }} Gün</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Hakediş</small><div class="fw-bold fs-6 text-success">{{ "{:,.0f}".format(hakedis) }} TL</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Bakiye</small><div class="fw-bold fs-6 text-primary">{{ "{:,.0f}".format(kalan) }} TL</div></div></div>
+    </div>
+    
+    <h5 class="fw-bold border-bottom pb-2 mb-3">📅 Puantaj ve Görev Yerleri Dökümü</h5>
+    <div class="table-responsive">
+        <table class="table table-bordered text-center align-middle mb-4" style="font-size: 12px;">
+            <thead class="table-light">
+                <tr>
+                    <th>Tarih</th>
+                    <th>Gün</th>
+                    <th>
