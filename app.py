@@ -313,17 +313,19 @@ function personeliGuncelleHesapla(personelId) {
             if(val > 0) {
                 toplamGun += val;
                 if(ucretTipi === 'Aylik' && isPazar) {
-                    pazarMesaiGun += val;
+                    pazarMesaiGun += val; // Pazar çalışması ekstradır
                 }
             }
         }
         
-        // Aylık maaşlılar için hafta içi eksik günler (0 yazılan veya boş bırakılmayan ama 0 olanlar)
+        // Aylık maaşlılar için hafta içi / cumartesi günlerinde 0 veya eksik girilenler düşülür
         if(ucretTipi === 'Aylik' && !isPazar) {
-            if(valStr !== '' && val === 0) {
-                eksikCalisilanGun += 1;
-            } else if(valStr !== '' && val === 0.5) {
-                eksikCalisilanGun += 0.5;
+            if(valStr !== '') {
+                if(val === 0) {
+                    eksikCalisilanGun += 1.0;
+                } else if(val === 0.5) {
+                    eksikCalisilanGun += 0.5;
+                }
             }
         }
     });
@@ -332,10 +334,10 @@ function personeliGuncelleHesapla(personelId) {
     var gunlukYevmiye = ucret / ayinGunSayisi;
     
     if(ucretTipi === 'Aylik') {
-        // Net maaş üzerinden eksik gün düşülür, pazar mesaisi eklenir
+        // Net maaş - Hafta içi gelmediği için düşülen günler + Pazar mesaileri
         hakedis = ucret - (eksikCalisilanGun * gunlukYevmiye) + (pazarMesaiGun * gunlukYevmiye);
     } else {
-        hakedis = gunlukYevmiye * toplamGun; // Günlük yevmiyeli
+        hakedis = gunlukYevmiye * toplamGun; // Günlük yevmiye
     }
     
     var avansCellText = document.getElementById('avans_' + personelId).innerText;
@@ -522,7 +524,7 @@ def ana_sayfa():
             'toplam_avans': p_avans, 'kalan': hakedis - p_avans
         })
         
-    cursor.execute('SELECT * FROM giderler WHERE strftime("%Y-%m", tarih) = ? ORDER BY tarih DESC', (secili_donem,))
+    cursor.execute('SELECT * FROM giderler WHERE strftime("%Y-%m", tarih) = ? ORDER BY giderler.tarih DESC', (secili_donem,))
     giderler = cursor.fetchall()
     toplam_gider = sum([g['tutar'] for g in giderler])
     conn.close()
