@@ -185,12 +185,12 @@ ANA_SAYFA_HTML = """
                             {% set p_info = p.puantaj_dict.get(tarih_str, {}) %}
                             <td class="{% if gb.gun_str == 'Paz' %}pazar-gunu{% endif %}">
                                 <div class="puantaj-box">
-                                    <input type="number" step="0.5" min="0" max="1" 
+                                    <input type="text" inputmode="decimal"
                                            value="{{ p_info.get('durum', '') }}" 
                                            class="form-control puantaj-input p-input-val {% if p_info.get('not_aciklama') %}has-note{% endif %}"
                                            id="p_input_{{ p.id }}_{{ tarih_str }}"
                                            data-personelid="{{ p.id }}"
-                                           onchange="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
+                                           oninput="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
                                     <button type="button" class="btn-note border-0 py-1" id="btn_not_{{ p.id }}_{{ tarih_str }}"
                                             onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}')">
                                        {{ '📍Not' if p_info.get('not_aciklama') else '+Not' }}
@@ -279,4 +279,162 @@ ANA_SAYFA_HTML = """
         <label class="form-label small text-muted mb-2">Gittiği Yerler (Örn: Mor Salkım Villası, Erben İnşaat):</label>
         <input type="text" id="modal_not_text" class="form-control py-3" placeholder="Şantiye adını yazın...">
       </div>
-      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button><button type="button" class="btn btn-primary
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button><button type="button" class="btn btn-primary fw-bold" onclick="modalNotKaydet()">Notu Kaydet</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+var myModal;
+document.addEventListener("DOMContentLoaded", function() { myModal = new bootstrap.Modal(document.getElementById('notModal')); });
+
+function personeliGuncelleHesapla(personelId) {
+    var row = document.getElementById('row_p_' + personelId);
+    if(!row) return;
+    
+    var ucret = parseFloat(row.getAttribute('data-ucret')) || 0;
+    var ucretTipi = row.getAttribute('data-ucrettipi');
+    var ayinGunSayisi = parseInt(row.getAttribute('data-ayingunsayisi')) || 30;
+    
+    var inputs = row.querySelectorAll('.p-input-val');
+    var toplamGun = 0;
+    inputs.forEach(function(input) {
+        var valStr = input.value.trim().replace(',', '.');
+        var val = parseFloat(valStr);
+        if(!isNaN(val)) {
+            toplamGun += val;
+        }
+    });
+    
+    var hakedis = 0;
+    if(ucretTipi === 'Aylik') {
+        hakedis = (toplamGun >= ayinGunSayisi) ? ucret : (ucret / ayinGunSayisi) * toplamGun;
+    } else {
+        hakedis = ucret * toplamGun;
+    }
+    
+    var avansCellText = document.getElementById('kalan_' + personelId).previousElementSibling.previousElementSibling.innerText;
+    var temizAvans = avansCellText.replace('₺', '').split('.').join('').replace(',', '.');
+    var avansTutar = parseFloat(temizAvans) || 0;
+    var kalan = hakedis - avansTutar;
+    
+    document.getElementById('toplam_gun_' + personelId).innerText = toplamGun + 'g';
+    document.getElementById('hakedis_' + personelId).innerText = hakedis.toLocaleString('tr-TR', {maximumFractionDigits: 0, minimumFractionDigits: 0}) + '₺';
+    document.getElementById('kalan_' + personelId).innerText = kalan.toLocaleString('tr-TR', {maximumFractionDigits: 0, minimumFractionDigits: 0}) + '₺';
+}
+
+function otomatikKaydet(personelId, tarih, notVal = null) {
+    var inputElem = document.getElementById('p_input_' + personelId + '_' + tarih);
+    var durumVal = inputElem.value.trim().replace(',', '.');
+    
+    personeliGuncelleHesapla(personelId);
+    
+    fetch('/api/puantaj-guncelle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personel_id: personelId, tarih: tarih, durum: durumVal, not_aciklama: notVal })
+    }).then(r => r.json()).then(data => {
+        if(data.success) {
+            var toast = document.getElementById('toast-msg');
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 1000);
+        }
+    });
+}
+
+function modalNotAc(pId, tarih) {
+    document.getElementById('modal_p_id').value = pId;
+    document.getElementById('modal_tarih').value = tarih;
+    document.getElementById('modal_not_text').value = '';
+    myModal.show();
+}
+
+function modalNotKaydet() {
+    var pId = document.getElementById('modal_p_id').value;
+    var tarih = document.getElementById('modal_tarih').value;
+    var text = document.getElementById('modal_not_text').value;
+    myModal.hide();
+    
+    var btn = document.getElementById('btn_not_' + pId + '_' + tarih);
+    if(text.trim() !== '') {
+        btn.innerText = '📍Not';
+        document.getElementById('p_input_' + pId + '_' + tarih).classList.add('has-note');
+    } else {
+        btn.innerText = '+Not';
+        document.getElementById('p_input_' + pId + '_' + tarih).classList.remove('has-note');
+    }
+    
+    otomatikKaydet(pId, tarih, text);
+}
+</script>
+</body>
+</html>
+"""
+
+EKSTRE_HTML = """
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ekstre - {{ personel.ad_soyad }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>body { background-color: #fff; font-size: 14px; color: #000; } .ekstre-box { max-width: 800px; margin: 15px auto; padding: 20px; } @media print { .no-print { display: none !important; } }</style>
+</head>
+<body>
+<div class="container text-center my-3 no-print"><button onclick="window.print()" class="btn btn-primary fw-bold">🖨️ Sayfayı Yazdır / PDF Kaydet</button></div>
+<div class="ekstre-box">
+    <div class="d-flex justify-content-between border-bottom pb-3 mb-4">
+        <div><h3 class="fw-bold m-0 fs-4">🏗️ PERSONEL HESAP EKSTRESİ</h3><small class="text-muted">Dönem: {{ secili_ay_str }}</small></div>
+        <div class="text-end"><h5 class="fw-bold mb-0">{{ personel.ad_soyad }}</h5><small>{{ personel.gorev }}</small></div>
+    </div>
+    <div class="row text-center mb-4 g-2">
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Birim</small><div class="fw-bold fs-6">{{ "{:,.0f}".format(personel.ucret) }} TL</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Çalışılan</small><div class="fw-bold fs-6">{{ toplam_gun }} Gün</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Hakediş</small><div class="fw-bold fs-6 text-success">{{ "{:,.0f}".format(hakedis) }} TL</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Bakiye</small><div class="fw-bold fs-6 text-primary">{{ "{:,.0f}".format(kalan) }} TL</div></div></div>
+    </div>
+    <h5 class="fw-bold border-bottom pb-2 mb-3">📅 Puantaj ve Görev Yerleri Dökümü</h5>
+    <table class="table table-bordered text-center align-middle mb-4">
+        <thead class="table-light"><tr><th>Tarih</th><th>Durum</th><th>Şantiye/Not</th><th>Tarih</th><th>Durum</th><th>Şantiye/Not</th></tr></thead>
+        <tbody>
+            {% for row in puantaj_rows %}
+            <tr>
+                <td>{{ row[0].tarih }}</td><td>{{ 'Tam (1.0)' if row[0].durum == 1.0 else ('Yarım (0.5)' if row[0].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start fw-bold">{{ row[0].not_aciklama or '-' }}</td>
+                {% if row[1] %}
+                <td>{{ row[1].tarih }}</td><td>{{ 'Tam (1.0)' if row[1].durum == 1.0 else ('Yarım (0.5)' if row[1].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start fw-bold">{{ row[1].not_aciklama or '-' }}</td>
+                {% else %}<td>-</td><td>-</td><td>-</td>{% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <h5 class="fw-bold border-bottom pb-2 mb-3">💸 Avans ve Ödeme Kayıtları</h5>
+    <table class="table table-striped mb-4">
+        <thead><tr><th>Tarih</th><th>Açıklama</th><th class="text-end">Tutar</th></tr></thead>
+        <tbody>
+            {% for a in avanslar %}
+            <tr><td>{{ a.tarih }}</td><td>{{ a.aciklama or 'Avans' }}</td><td class="text-end fw-bold text-danger">{{ "{:,.2f}".format(a.tutar) }} TL</td></tr>
+            {% else %}<tr><td colspan="3" class="text-center text-muted">Kayıtlı ödeme bulunmuyor.</td></tr>{% endfor %}
+            <tr class="table-light fw-bold"><td colspan="2" class="text-end">Toplam Ödenen:</td><td class="text-end text-danger fw-bold">{{ "{:,.2f}".format(toplam_avans) }} TL</td></tr>
+        </tbody>
+    </table>
+    <div class="row mt-5 text-center">
+        <div class="col-6"><p class="mb-5 fw-bold">Teslim Eden (Şantiye Yetkilisi)</p><p>İmza: .......................................</p></div>
+        <div class="col-6"><p class="mb-5 fw-bold">Teslim Alan (Personel)</p><p>İmza: .......................................</p></div>
+    </div>
+</div>
+</body>
+</html>
+"""
+
+@app.route('/manifest.json')
+def manifest():
+    return jsonify({
+        "name": "Şantiye & Personel Takip", "short_name": "Şantiye Takip", "start_url": "/", "display": "standalone",
+        "background_color": "#212529", "theme_color": "#212529",
+        "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/1048/1048953.png", "sizes": "512x512", "type": "image/png"}]
+    })
+
+@app.route('/')
+def ana_sayfa():
