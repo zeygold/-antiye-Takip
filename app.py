@@ -202,7 +202,7 @@ ANA_SAYFA_HTML = """
                         <td class="fw-bold" id="toplam_gun_{{ p.id }}">{{ p.toplam_gun }}g</td>
                         <td class="text-success fw-bold" id="hakedis_{{ p.id }}">{{ "{:,.0f}".format(p.hakedis) }}₺</td>
                         <td class="text-danger fw-bold" id="avans_{{ p.id }}">{{ "{:,.0f}".format(p.toplam_avans) }}₺</td>
-                        <td class="fw-bold text-primary" id="kalan_{{ p.id }}">{{ "{:,.0f}".format(p.kalan) }}₺</td>
+                        <td class="fw-bold {{ 'text-danger' if p.kalan < 0 else 'text-primary' }}" id="kalan_{{ p.id }}">{{ "{:,.0f}".format(p.kalan) }}₺</td>
                         <td><a href="/personel-ekstre/{{ p.id }}?donem={{ secili_donem }}" target="_blank" class="btn btn-outline-dark btn-sm py-2 px-3 fw-bold" style="font-size:12px; height: auto;">📄Ekstre</a></td>
                     </tr>
                     {% else %}
@@ -323,9 +323,16 @@ function personeliGuncelleHesapla(personelId) {
     var avansTutar = parseFloat(temizAvans) || 0;
     var kalan = hakedis - avansTutar;
     
+    var kalanElem = document.getElementById('kalan_' + personelId);
+    kalanElem.innerText = kalan.toLocaleString('tr-TR', {maximumFractionDigits: 0, minimumFractionDigits: 0}) + '₺';
+    if(kalan < 0) {
+        kalanElem.className = 'fw-bold text-danger';
+    } else {
+        kalanElem.className = 'fw-bold text-primary';
+    }
+    
     document.getElementById('toplam_gun_' + personelId).innerText = toplamGun + 'g';
     document.getElementById('hakedis_' + personelId).innerText = hakedis.toLocaleString('tr-TR', {maximumFractionDigits: 0, minimumFractionDigits: 0}) + '₺';
-    document.getElementById('kalan_' + personelId).innerText = kalan.toLocaleString('tr-TR', {maximumFractionDigits: 0, minimumFractionDigits: 0}) + '₺';
 }
 
 function otomatikKaydet(personelId, tarih, notVal = null) {
@@ -405,7 +412,7 @@ EKSTRE_HTML = r"""
         <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Birim</small><div class="fw-bold fs-6">{{ "{:,.0f}".format(personel.ucret) }} TL</div></div></div>
         <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Çalışılan</small><div class="fw-bold fs-6">{{ toplam_gun }} Gün</div></div></div>
         <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Hakediş</small><div class="fw-bold fs-6 text-success">{{ "{:,.0f}".format(hakedis) }} TL</div></div></div>
-        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Bakiye</small><div class="fw-bold fs-6 text-primary">{{ "{:,.0f}".format(kalan) }} TL</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Bakiye</small><div class="fw-bold fs-6 {{ 'text-danger' if kalan < 0 else 'text-primary' }}">{{ "{:,.0f}".format(kalan) }} TL</div></div></div>
     </div>
     
     <h5 class="fw-bold border-bottom pb-2 mb-3">📅 Puantaj ve Görev Yerleri Dökümü</h5>
@@ -511,10 +518,12 @@ def ana_sayfa():
         cursor.execute('SELECT SUM(tutar) as toplam_avans FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? AND tip = "Avans"', (p['id'], secili_donem))
         p_avans = cursor.fetchone()['toplam_avans'] or 0.0
         
+        kalan = hakedis - p_avans
+        
         personeller.append({
             'id': p['id'], 'ad_soyad': p['ad_soyad'], 'gorev': p['gorev'], 'ucret_tipi': p['ucret_tipi'],
             'ucret': p['ucret'], 'puantaj_dict': puantaj_dict, 'toplam_gun': p_gun, 'hakedis': hakedis,
-            'toplam_avans': p_avans, 'kalan': hakedis - p_avans
+            'toplam_avans': p_avans, 'kalan': kalan
         })
         
     cursor.execute('SELECT * FROM giderler WHERE strftime("%Y-%m", tarih) = ? ORDER BY tarih DESC', (secili_donem,))
@@ -617,9 +626,11 @@ def personel_ekstre(personel_id):
     toplam_avans = sum([a['tutar'] for a in avanslar])
     conn.close()
     
+    kalan = hakedis - toplam_avans
+    
     return render_template_string(EKSTRE_HTML, personel=personel, secili_ay_str=datetime(yil, ay, 1).strftime('%B %Y'),
                                   cift_sutun_rows=cift_sutun_rows, toplam_gun=toplam_gun, hakedis=hakedis, avanslar=avanslar,
-                                  toplam_avans=toplam_avans, kalan=hakedis - toplam_avans)
+                                  toplam_avans=toplam_avans, kalan=kalan)
 
 @app.route('/personel-ekle', methods=['POST'])
 def personel_ekle():
