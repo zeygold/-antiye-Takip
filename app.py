@@ -34,11 +34,10 @@ def init_db():
             UNIQUE(personel_id, tarih)
         )
     ''')
-    # Var olan veritabanına not_aciklama sütununu ekleme kontrolü
     try:
         cursor.execute('ALTER TABLE puantaj ADD COLUMN not_aciklama TEXT')
     except sqlite3.OperationalError:
-        pass # Sütun zaten varsa devam et
+        pass
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS hareketler (
@@ -135,7 +134,7 @@ HTML_TEMPLATE = '''
     <div class="card p-3">
         <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
             <h6 class="fw-bold m-0">📅 Aylık Puantaj ve Hakediş Tablosu</h6>
-            <small class="text-muted">Kutucuklara 1, 0.5 veya 0 yazın. Şantiye notu için kutunun yanındaki simgeye tıklayın.</small>
+            <small class="text-muted">Kutucuklara 1, 0.5 veya 0 yazın. Şantiye notu eklemek için altındaki nota tıklayın.</small>
         </div>
         <div class="table-responsive mt-2">
             <table class="table table-bordered table-hover align-middle text-center">
@@ -179,10 +178,10 @@ HTML_TEMPLATE = '''
                                            id="p_input_{{ p.id }}_{{ tarih_str }}"
                                            title="Şantiye Notu: {{ not_val if not_val else 'Yok' }}"
                                            onchange="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
-                                    <a href="javascript:void(0)" onclick="santiyeNotuGir({{ p.id }}, '{{ tarih_str }}', '{{ not_val }}')" 
-                                       class="d-block text-decoration-none" style="font-size: 9px; line-height:1;">
+                                    <button type="button" class="btn btn-link p-0 border-0 text-decoration-none" style="font-size: 10px; line-height:1;"
+                                            onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}', '{{ not_val }}')">
                                        {% if not_val %}📍Not{% else %}+Not{% endif %}
-                                    </a>
+                                    </button>
                                 </div>
                             </td>
                         {% endfor %}
@@ -304,7 +303,38 @@ HTML_TEMPLATE = '''
     </div>
 </div>
 
+<!-- Şantiye Notu Modal Penceresi -->
+<div class="modal fade" id="notModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold">📍 Şantiye / Görev Yeri Notu</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="modal_p_id">
+        <input type="hidden" id="modal_tarih">
+        <div class="mb-3">
+            <label class="form-label small text-muted">Gittiği Şantiye veya Görev Yeri Açıklaması:</label>
+            <input type="text" id="modal_not_text" class="form-control" placeholder="Örn: Mor Salkım Villası">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">İptal</button>
+        <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="modalNotKaydet()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+var myModal;
+
+document.addEventListener("DOMContentLoaded", function() {
+    myModal = new bootstrap.Modal(document.getElementById('notModal'));
+});
+
 function otomatikKaydet(personelId, tarih, notVal = null) {
     var durumVal = document.getElementById('p_input_' + personelId + '_' + tarih).value;
     
@@ -328,11 +358,19 @@ function otomatikKaydet(personelId, tarih, notVal = null) {
     });
 }
 
-function santiyeNotuGir(personelId, tarih, mevcutNot) {
-    var yeniNot = prompt("Gittiği Şantiye / Görev Yeri Notunu Giriniz:\n(Örn: Mor Salkım Villası)", mevcutNot || "");
-    if (yeniNot !== null) {
-        otomatikKaydet(personelId, tarih, yeniNot);
-    }
+function modalNotAc(personelId, tarih, mevcutNot) {
+    document.getElementById('modal_p_id').value = personelId;
+    document.getElementById('modal_tarih').value = tarih;
+    document.getElementById('modal_not_text').value = mevcutNot || '';
+    myModal.show();
+}
+
+function modalNotKaydet() {
+    var pId = document.getElementById('modal_p_id').value;
+    var tarih = document.getElementById('modal_tarih').value;
+    var notText = document.getElementById('modal_not_text').value;
+    myModal.hide();
+    otomatikKaydet(pId, tarih, notText);
 }
 </script>
 </body>
@@ -583,7 +621,6 @@ def api_puantaj_guncelle():
     conn = get_db()
     cursor = conn.cursor()
     
-    # Mevcut kaydı çek
     cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih))
     row = cursor.fetchone()
     
