@@ -76,20 +76,14 @@ ANA_SAYFA_HTML = """
     <style>
         body { background-color: #f4f6f9; font-size: 14px; -webkit-tap-highlight-color: transparent; }
         .card { margin-bottom: 14px; border-radius: 12px; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.06); padding: 14px; }
-        
-        /* Büyütülmüş Dokunmatik Kutular */
         .form-control-sm, .form-select-sm { height: 42px; font-size: 14px; border-radius: 8px; }
         .btn-sm { height: 44px; font-size: 15px; border-radius: 8px; }
-        
-        /* İki Sıralı Puantaj Kutuları */
         .puantaj-box { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
         .puantaj-input { width: 44px; height: 36px; text-align: center; padding: 2px; font-size: 14px; font-weight: bold; border-radius: 6px; }
         .has-note { background-color: #fff3cd !important; border-color: #ffe69c !important; }
         .btn-note { font-size: 10px; font-weight: bold; padding: 2px 5px; border-radius: 4px; background-color: #e9ecef; color: #495057; text-decoration: none; display: block; width: 44px; text-align: center; }
-        
         .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
         .table th, .table td { padding: 8px 4px; vertical-align: middle; }
-        
         #toast-msg {
             position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); z-index: 9999;
             display: none; padding: 10px 22px; background-color: #198754; color: white;
@@ -108,7 +102,6 @@ ANA_SAYFA_HTML = """
 </nav>
 
 <div class="container-fluid px-2">
-    <!-- Dönem Seçimi -->
     <div class="card bg-white">
         <form method="GET" class="row g-2 align-items-center m-0">
             <div class="col-auto p-0 me-2"><label class="fw-bold fs-6">Dönem:</label></div>
@@ -118,7 +111,6 @@ ANA_SAYFA_HTML = """
         </form>
     </div>
 
-    <!-- Personel Ekleme -->
     <div class="card">
         <h6 class="fw-bold border-bottom pb-2 mb-2 fs-6">➕ Yeni Personel Ekle</h6>
         <form action="/personel-ekle" method="POST" class="row g-2">
@@ -136,7 +128,6 @@ ANA_SAYFA_HTML = """
         </form>
     </div>
 
-    <!-- Puantaj Tablosu -->
     <div class="card">
         <h6 class="fw-bold border-bottom pb-2 mb-2 fs-6">📅 Puantaj Tablosu</h6>
         <div class="table-responsive">
@@ -193,7 +184,6 @@ ANA_SAYFA_HTML = """
         </div>
     </div>
 
-    <!-- Büyütülmüş Avans Girişi -->
     <div class="card">
         <h6 class="fw-bold border-bottom pb-2 mb-2 fs-6">💸 Avans / Ödeme Girişi</h6>
         <form action="/avans-ekle" method="POST" class="row g-2">
@@ -211,7 +201,6 @@ ANA_SAYFA_HTML = """
         </form>
     </div>
 
-    <!-- Büyütülmüş Şantiye Günlük Gider Girişi -->
     <div class="card">
         <h6 class="fw-bold border-bottom pb-2 mb-2 fs-6">🏗️ Şantiye Günlük Gider Girişi</h6>
         <form action="/gider-ekle" method="POST" class="row g-2">
@@ -233,7 +222,6 @@ ANA_SAYFA_HTML = """
         </form>
     </div>
 
-    <!-- Şantiye Gider Özeti -->
     <div class="card mb-4">
         <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
             <h6 class="fw-bold m-0 fs-6">🛒 Bu Ayki Giderler</h6>
@@ -370,14 +358,4 @@ def manifest():
 @app.route('/')
 def ana_sayfa():
     secili_donem = request.args.get('donem', datetime.now().strftime('%Y-%m'))
-    yil, ay = map(int, secili_donem.split('-'))
-    ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM personeller')
-    personeller_db = cursor.fetchall()
-    
-    personeller = []
-    for p in personeller_db:
-        cursor.execute('SELECT tarih, durum, not_aciklama FROM puantaj WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ?', (p['id'], secili_donem
+    yil, ay = map(int, secili_donem
