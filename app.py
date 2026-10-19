@@ -92,12 +92,10 @@ ANA_SAYFA_HTML = """
         .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
         .table th, .table td { padding: 10px 6px; vertical-align: middle; white-space: nowrap; }
         
-        /* 🔥 Pazar Günleri Arka Planı (Otomatik Kırmızı/Pembe Vurgu) */
-        .pazar-gunu {
-            background-color: #ffe6e6 !important;
-        }
+        /* Pazar Günleri Vurgusu */
+        .pazar-gunu { background-color: #ffe6e6 !important; }
 
-        /* 🔥 İsim Sütununu Sağa Kaydırırken Sabitleme (Sticky Column) */
+        /* İsim Sütununu Sabitleme (Sticky Column) */
         .sticky-col {
             position: sticky;
             left: 0;
@@ -163,10 +161,10 @@ ANA_SAYFA_HTML = """
                         <th class="text-start sticky-col" style="min-width: 140px; box-shadow: 2px 0 5px rgba(0,0,0,0.1);">Ad Soyad</th>
                         <th style="min-width: 60px;">Tip</th>
                         <th style="min-width: 70px;">Ücret</th>
-                        {% for gun_bilgi in takvim_gunleri %}
-                            <th style="min-width: 55px;" class="{% if gun_bilgi.haftanin_gunu == 'Paz' %}bg-danger text-white{% endif %}">
-                                <div style="font-size: 13px;">{{ gun_bilgi.gun }}</div>
-                                <div style="font-size: 10px; opacity: 0.85;">{{ gun_bilgi.haftanin_gunu }}</div>
+                        {% for gb in takvim_gunleri %}
+                            <th style="min-width: 55px;" class="{% if gb.gun_str == 'Paz' %}bg-danger text-white{% endif %}">
+                                <div style="font-size: 13px;">{{ gb.gun_no }}</div>
+                                <div style="font-size: 10px; opacity: 0.85;">{{ gb.gun_str }}</div>
                             </th>
                         {% endfor %}
                         <th style="min-width: 60px;">Gün</th>
@@ -184,10 +182,10 @@ ANA_SAYFA_HTML = """
                         </td>
                         <td><span class="badge bg-{{ 'info text-dark' if p.ucret_tipi == 'Aylik' else 'secondary' }}" style="font-size:11px;">{{ 'Aylık' if p.ucret_tipi == 'Aylik' else 'Günlük' }}</span></td>
                         <td class="fw-bold">{{ "{:,.0f}".format(p.ucret) }}</td>
-                        {% for gun_bilgi in takvim_gunleri %}
-                            {% set tarih_str = gun_bilgi.tarih_str %}
+                        {% for gb in takvim_gunleri %}
+                            {% set tarih_str = gb.tarih_str %}
                             {% set p_info = p.puantaj_dict.get(tarih_str, {}) %}
-                            <td class="{% if gun_bilgi.haftanin_gunu == 'Paz' %}pazar-gunu{% endif %}">
+                            <td class="{% if gb.gun_str == 'Paz' %}pazar-gunu{% endif %}">
                                 <div class="puantaj-box">
                                     <input type="number" step="0.5" min="0" max="1" 
                                            value="{{ p_info.get('durum', '') }}" 
@@ -406,15 +404,14 @@ def ana_sayfa():
     yil, ay = map(int, secili_donem.split('-'))
     ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
     
-    # Günlerin yanına haftanın günlerini ekleme (Pzt, Sal, Çar, Per, Cum, Cmt, Paz)
-    gun_isimleri = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+    gun_kisaltmalari = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
     takvim_gunleri = []
     for gun in range(1, ayin_gun_sayisi + 1):
         dt = datetime(yil, ay, gun)
-        haftanin_gunu_index = dt.weekday() # 0: Pzt, 6: Paz
+        index = dt.weekday()
         takvim_gunleri.append({
-            'gun': gun,
-            'haftanin_gunu': gun_isimleri[haftanin_gunu_index],
+            'gun_no': gun,
+            'gun_str': gun_kisaltmalari[index],
             'tarih_str': f"{yil}-{ay:02d}-{gun:02d}"
         })
     
@@ -543,4 +540,9 @@ def gider_ekle():
                    (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form.get('aciklama', '')))
     conn.commit()
     conn.close()
-    return redirect
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+if __name__ == '__main__':
+    init_db()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
