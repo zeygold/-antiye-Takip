@@ -30,9 +30,16 @@ def init_db():
             personel_id INTEGER,
             tarih TEXT,
             durum REAL,
+            not_aciklama TEXT,
             UNIQUE(personel_id, tarih)
         )
     ''')
+    # Var olan veritabanına not_aciklama sütununu ekleme kontrolü
+    try:
+        cursor.execute('ALTER TABLE puantaj ADD COLUMN not_aciklama TEXT')
+    except sqlite3.OperationalError:
+        pass # Sütun zaten varsa devam et
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS hareketler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +73,9 @@ HTML_TEMPLATE = '''
     <style>
         body { background-color: #f8f9fa; font-size: 13px; }
         .card { margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .puantaj-box { position: relative; display: inline-block; }
         .puantaj-input { width: 42px; text-align: center; padding: 2px; font-size: 12px; font-weight: bold; }
+        .has-note { background-color: #fff3cd !important; border-color: #ffecb5 !important; }
         .table-responsive { overflow-x: auto; }
         #toast-msg {
             position: fixed; bottom: 20px; right: 20px; z-index: 9999;
@@ -126,7 +135,7 @@ HTML_TEMPLATE = '''
     <div class="card p-3">
         <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
             <h6 class="fw-bold m-0">📅 Aylık Puantaj ve Hakediş Tablosu</h6>
-            <small class="text-muted">Kutucuklara 1, 0.5 veya 0 yazın, <strong>otomatik kaydedilir!</strong></small>
+            <small class="text-muted">Kutucuklara 1, 0.5 veya 0 yazın. Şantiye notu için kutunun yanındaki simgeye tıklayın.</small>
         </div>
         <div class="table-responsive mt-2">
             <table class="table table-bordered table-hover align-middle text-center">
@@ -136,7 +145,7 @@ HTML_TEMPLATE = '''
                         <th>Tip</th>
                         <th>Ücret</th>
                         {% for gun in range(1, ayin_gun_sayisi + 1) %}
-                            <th style="min-width: 42px;">{{ gun }}</th>
+                            <th style="min-width: 45px;">{{ gun }}</th>
                         {% endfor %}
                         <th>Çalışılan</th>
                         <th>Hakediş</th>
@@ -159,11 +168,22 @@ HTML_TEMPLATE = '''
                         <td>{{ "{:,.0f}".format(p.ucret) }}</td>
                         {% for gun in range(1, ayin_gun_sayisi + 1) %}
                             {% set tarih_str = "{}-{:02d}-{:02d}".format(yil, ay, gun) %}
+                            {% set p_info = p.puantaj_dict.get(tarih_str, {}) %}
+                            {% set val = p_info.get('durum', '') %}
+                            {% set not_val = p_info.get('not_aciklama', '') %}
                             <td>
-                                <input type="number" step="0.5" min="0" max="1" 
-                                       value="{{ p.puantaj_dict.get(tarih_str, '') }}" 
-                                       class="form-control form-control-sm puantaj-input"
-                                       onchange="otomatikKaydet({{ p.id }}, '{{ tarih_str }}', this.value)">
+                                <div class="puantaj-box">
+                                    <input type="number" step="0.5" min="0" max="1" 
+                                           value="{{ val if val is not none else '' }}" 
+                                           class="form-control form-control-sm puantaj-input {% if not_val %}has-note{% endif %}"
+                                           id="p_input_{{ p.id }}_{{ tarih_str }}"
+                                           title="Şantiye Notu: {{ not_val if not_val else 'Yok' }}"
+                                           onchange="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
+                                    <a href="javascript:void(0)" onclick="santiyeNotuGir({{ p.id }}, '{{ tarih_str }}', '{{ not_val }}')" 
+                                       class="d-block text-decoration-none" style="font-size: 9px; line-height:1;">
+                                       {% if not_val %}📍Not{% else %}+Not{% endif %}
+                                    </a>
+                                </div>
                             </td>
                         {% endfor %}
                         <td class="fw-bold">{{ p.toplam_gun }} gün</td>
@@ -285,11 +305,18 @@ HTML_TEMPLATE = '''
 </div>
 
 <script>
-function otomatikKaydet(personelId, tarih, durum) {
+function otomatikKaydet(personelId, tarih, notVal = null) {
+    var durumVal = document.getElementById('p_input_' + personelId + '_' + tarih).value;
+    
     fetch('/api/puantaj-guncelle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personel_id: personelId, tarih: tarih, durum: durum })
+        body: JSON.stringify({ 
+            personel_id: personelId, 
+            tarih: tarih, 
+            durum: durumVal,
+            not_aciklama: notVal
+        })
     })
     .then(response => response.json())
     .then(data => {
@@ -299,6 +326,13 @@ function otomatikKaydet(personelId, tarih, durum) {
             setTimeout(() => { toast.style.display = 'none'; location.reload(); }, 800);
         }
     });
+}
+
+function santiyeNotuGir(personelId, tarih, mevcutNot) {
+    var yeniNot = prompt("Gittiği Şantiye / Görev Yeri Notunu Giriniz:\n(Örn: Mor Salkım Villası)", mevcutNot || "");
+    if (yeniNot !== null) {
+        otomatikKaydet(personelId, tarih, yeniNot);
+    }
 }
 </script>
 </body>
@@ -368,14 +402,16 @@ EKSTRE_TEMPLATE = '''
     </div>
 
     <!-- Puantaj Detayları -->
-    <h6 class="fw-bold border-bottom pb-2">📅 Günlük Puantaj Dökümü</h6>
+    <h6 class="fw-bold border-bottom pb-2">📅 Günlük Puantaj ve Görev Yeri Dökümü</h6>
     <table class="table table-sm table-bordered text-center align-middle mb-4">
         <thead class="table-light">
             <tr>
                 <th>Tarih</th>
                 <th>Çalışma Durumu</th>
+                <th>Şantiye / Not</th>
                 <th>Tarih</th>
                 <th>Çalışma Durumu</th>
+                <th>Şantiye / Not</th>
             </tr>
         </thead>
         <tbody>
@@ -391,6 +427,7 @@ EKSTRE_TEMPLATE = '''
                         <span class="text-muted">Gelmedi / İzinli</span>
                     {% endif %}
                 </td>
+                <td class="fw-bold text-start">{{ row[0].not_aciklama or '-' }}</td>
                 {% if row[1] %}
                 <td>{{ row[1].tarih }}</td>
                 <td>
@@ -402,7 +439,9 @@ EKSTRE_TEMPLATE = '''
                         <span class="text-muted">Gelmedi / İzinli</span>
                     {% endif %}
                 </td>
+                <td class="fw-bold text-start">{{ row[1].not_aciklama or '-' }}</td>
                 {% else %}
+                <td>-</td>
                 <td>-</td>
                 <td>-</td>
                 {% endif %}
@@ -472,13 +511,19 @@ def ana_sayfa():
     personeller = []
     for p in personeller_db:
         cursor.execute('''
-            SELECT tarih, durum FROM puantaj 
+            SELECT tarih, durum, not_aciklama FROM puantaj 
             WHERE personel_id = ? AND strftime('%Y-%m', tarih) = ?
         ''', (p['id'], secili_donem))
         puantaj_rows = cursor.fetchall()
-        puantaj_dict = {row['tarih']: (row['durum'] if row['durum'] is not None else '') for row in puantaj_rows}
         
-        p_gun = sum([float(val) for val in puantaj_dict.values() if val != ''])
+        puantaj_dict = {}
+        for row in puantaj_rows:
+            puantaj_dict[row['tarih']] = {
+                'durum': row['durum'],
+                'not_aciklama': row['not_aciklama']
+            }
+        
+        p_gun = sum([float(val['durum']) for val in puantaj_dict.values() if val['durum'] is not None])
         
         if p['ucret_tipi'] == 'Aylik':
             if p_gun >= ayin_gun_sayisi:
@@ -533,19 +578,27 @@ def api_puantaj_guncelle():
     personel_id = data.get('personel_id')
     tarih = data.get('tarih')
     durum = data.get('durum')
+    not_aciklama = data.get('not_aciklama')
     
     conn = get_db()
     cursor = conn.cursor()
     
-    if durum != '' and durum is not None:
+    # Mevcut kaydı çek
+    cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih))
+    row = cursor.fetchone()
+    
+    yeni_durum = durum if durum is not None and durum != '' else (row['durum'] if row else None)
+    yeni_not = not_aciklama if not_aciklama is not None else (row['not_aciklama'] if row else None)
+    
+    if yeni_durum is not None or yeni_not is not None:
         cursor.execute('''
-            INSERT INTO puantaj (personel_id, tarih, durum)
-            VALUES (?, ?, ?)
-            ON CONFLICT(personel_id, tarih) DO UPDATE SET durum=excluded.durum
-        ''', (personel_id, tarih, float(durum)))
-    else:
-        cursor.execute('DELETE FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih))
-        
+            INSERT INTO puantaj (personel_id, tarih, durum, not_aciklama)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(personel_id, tarih) DO UPDATE SET 
+                durum=COALESCE(excluded.durum, puantaj.durum),
+                not_aciklama=COALESCE(excluded.not_aciklama, puantaj.not_aciklama)
+        ''', (personel_id, tarih, yeni_durum, yeni_not))
+    
     conn.commit()
     conn.close()
     return jsonify({'success': True})
@@ -566,11 +619,12 @@ def personel_ekstre(personel_id):
     toplam_gun = 0.0
     for gun in range(1, ayin_gun_sayisi + 1):
         tarih_str = f"{yil}-{ay:02d}-{gun:02d}"
-        cursor.execute('SELECT durum FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih_str))
+        cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih_str))
         row = cursor.fetchone()
-        durum = row['durum'] if row else 0.0
+        durum = row['durum'] if row and row['durum'] is not None else 0.0
+        not_aciklama = row['not_aciklama'] if row else ''
         toplam_gun += durum
-        puantaj_list.append({'tarih': tarih_str, 'durum': durum})
+        puantaj_list.append({'tarih': tarih_str, 'durum': durum, 'not_aciklama': not_aciklama})
         
     puantaj_rows = []
     for i in range(0, len(puantaj_list), 2):
