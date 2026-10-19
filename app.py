@@ -74,85 +74,97 @@ ANA_SAYFA_HTML = """
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f4f6f9; font-size: 14px; -webkit-tap-highlight-color: transparent; }
-        .card { margin-bottom: 14px; border-radius: 12px; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.06); padding: 14px; }
-        .form-control-sm, .form-select-sm { height: 42px; font-size: 14px; border-radius: 8px; }
-        .btn-sm { height: 44px; font-size: 15px; border-radius: 8px; }
-        .puantaj-box { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
-        .puantaj-input { width: 44px; height: 36px; text-align: center; padding: 2px; font-size: 14px; font-weight: bold; border-radius: 6px; }
+        body { background-color: #e9ecef; font-size: 15px; -webkit-tap-highlight-color: transparent; }
+        .container-fluid { padding: 12px; max-width: 600px; margin: 0 auto; }
+        
+        /* Büyük Tam Ekran Blok Tasarımı */
+        .card { margin-bottom: 18px; border-radius: 16px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 18px; background: #ffffff; }
+        
+        /* Genişletilmiş Dokunmatik Girdiler ve Butonlar */
+        .form-control, .form-select { height: 48px; font-size: 16px; border-radius: 10px; border: 1.5px solid #ced4da; }
+        .btn { height: 50px; font-size: 16px; border-radius: 10px; font-weight: bold; }
+        
+        /* Puantaj Kutuları */
+        .puantaj-box { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+        .puantaj-input { width: 48px; height: 40px; text-align: center; padding: 2px; font-size: 15px; font-weight: bold; border-radius: 8px; }
         .has-note { background-color: #fff3cd !important; border-color: #ffe69c !important; }
-        .btn-note { font-size: 10px; font-weight: bold; padding: 2px 5px; border-radius: 4px; background-color: #e9ecef; color: #495057; text-decoration: none; display: block; width: 44px; text-align: center; }
-        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
-        .table th, .table td { padding: 8px 4px; vertical-align: middle; }
+        .btn-note { font-size: 11px; font-weight: bold; padding: 3px 6px; border-radius: 6px; background-color: #e9ecef; color: #333; text-decoration: none; display: block; width: 48px; text-align: center; }
+        
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
+        .table th, .table td { padding: 10px 6px; vertical-align: middle; }
+        
         #toast-msg {
-            position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); z-index: 9999;
-            display: none; padding: 10px 22px; background-color: #198754; color: white;
-            border-radius: 25px; font-weight: bold; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 9999;
+            display: none; padding: 12px 24px; background-color: #198754; color: white;
+            border-radius: 30px; font-weight: bold; font-size: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.3);
         }
     </style>
 </head>
 <body>
 <div id="toast-msg">Otomatik Kaydedildi ✔</div>
 
-<nav class="navbar navbar-dark bg-dark mb-2 py-2">
-    <div class="container-fluid px-2">
-        <span class="navbar-brand fw-bold fs-6">🏗️ Şantiye & Personel Takip</span>
-        <span class="navbar-text text-white small" style="font-size: 11px;">{{ secili_ay_str }}</span>
+<nav class="navbar navbar-dark bg-dark mb-3 py-3 rounded-bottom shadow-sm">
+    <div class="container-fluid px-3 d-flex justify-content-between align-items-center">
+        <span class="navbar-brand fw-bold fs-5">🏗️ Şantiye & Personel</span>
+        <span class="navbar-text text-white small fw-bold">{{ secili_ay_str }}</span>
     </div>
 </nav>
 
-<div class="container-fluid px-2">
-    <div class="card bg-white">
+<div class="container-fluid">
+    <!-- Dönem Seçimi -->
+    <div class="card">
         <form method="GET" class="row g-2 align-items-center m-0">
-            <div class="col-auto p-0 me-2"><label class="fw-bold fs-6">Dönem:</label></div>
-            <div class="col p-0">
-                <input type="month" name="donem" value="{{ secili_donem }}" class="form-control form-control-sm" onchange="this.form.submit()">
+            <div class="col-4 p-0"><label class="fw-bold fs-6">📅 Dönem:</label></div>
+            <div class="col-8 p-0">
+                <input type="month" name="donem" value="{{ secili_donem }}" class="form-control" onchange="this.form.submit()">
             </div>
         </form>
     </div>
 
+    <!-- Personel Ekleme -->
     <div class="card">
-        <h6 class="fw-bold border-bottom pb-2 mb-2 fs-6">➕ Yeni Personel Ekle</h6>
-        <form action="/personel-ekle" method="POST" class="row g-2">
+        <h5 class="fw-bold border-bottom pb-2 mb-3 text-primary">➕ Yeni Personel Ekle</h5>
+        <form action="/personel-ekle" method="POST" class="row g-3">
             <input type="hidden" name="donem" value="{{ secili_donem }}">
-            <div class="col-12"><input type="text" name="ad_soyad" class="form-control form-control-sm" placeholder="Ad Soyad" required></div>
-            <div class="col-12"><input type="text" name="gorev" class="form-control form-control-sm" placeholder="Görev (Örn: Kalıpçı)"></div>
+            <div class="col-12"><input type="text" name="ad_soyad" class="form-control" placeholder="Ad Soyad" required></div>
+            <div class="col-12"><input type="text" name="gorev" class="form-control" placeholder="Görev (Örn: Elektrikçi / Kalıpçı)"></div>
             <div class="col-6">
-                <select name="ucret_tipi" class="form-select form-select-sm">
+                <select name="ucret_tipi" class="form-select">
                     <option value="Gunluk">Günlük Yevmiye</option>
                     <option value="Aylik">Aylık Maaş</option>
                 </select>
             </div>
-            <div class="col-6"><input type="number" step="0.01" name="ucret" class="form-control form-control-sm" placeholder="Tutar (TL)" required></div>
-            <div class="col-12"><button type="submit" class="btn btn-primary btn-sm w-100 fw-bold">Personeli Kaydet</button></div>
+            <div class="col-6"><input type="number" step="0.01" name="ucret" class="form-control" placeholder="Tutar (TL)" required></div>
+            <div class="col-12"><button type="submit" class="btn btn-primary w-100 shadow-sm">Personeli Kaydet</button></div>
         </form>
     </div>
 
+    <!-- Puantaj Tablosu -->
     <div class="card">
-        <h6 class="fw-bold border-bottom pb-2 mb-2 fs-6">📅 Puantaj Tablosu</h6>
+        <h5 class="fw-bold border-bottom pb-2 mb-3 text-dark">📊 Puantaj & Hakediş Tablosu</h5>
         <div class="table-responsive">
             <table class="table table-bordered table-hover text-center mb-1">
-                <thead class="table-dark small">
+                <thead class="table-dark">
                     <tr>
-                        <th class="text-start" style="min-width: 120px;">Ad Soyad</th>
-                        <th style="min-width: 50px;">Tip</th>
-                        <th style="min-width: 60px;">Ücret</th>
+                        <th class="text-start" style="min-width: 140px;">Ad Soyad</th>
+                        <th style="min-width: 60px;">Tip</th>
+                        <th style="min-width: 70px;">Ücret</th>
                         {% for gun in range(1, ayin_gun_sayisi + 1) %}
-                            <th style="min-width: 50px;">{{ gun }}</th>
+                            <th style="min-width: 55px;">{{ gun }}</th>
                         {% endfor %}
-                        <th style="min-width: 55px;">Gün</th>
-                        <th style="min-width: 75px;">Hakediş</th>
-                        <th style="min-width: 75px;">Avans</th>
-                        <th style="min-width: 75px;">Kalan</th>
-                        <th style="min-width: 65px;">İşlem</th>
+                        <th style="min-width: 60px;">Gün</th>
+                        <th style="min-width: 85px;">Hakediş</th>
+                        <th style="min-width: 85px;">Avans</th>
+                        <th style="min-width: 85px;">Kalan</th>
+                        <th style="min-width: 75px;">İşlem</th>
                     </tr>
                 </thead>
-                <tbody class="small">
+                <tbody>
                     {% for p in personeller %}
                     <tr>
-                        <td class="text-start fw-bold">{{ p.ad_soyad }}<br><span class="text-muted fw-normal" style="font-size:11px;">{{ p.gorev }}</span></td>
-                        <td><span class="badge bg-{{ 'info text-dark' if p.ucret_tipi == 'Aylik' else 'secondary' }}" style="font-size:10px;">{{ 'Aylık' if p.ucret_tipi == 'Aylik' else 'Günlük' }}</span></td>
-                        <td>{{ "{:,.0f}".format(p.ucret) }}</td>
+                        <td class="text-start fw-bold">{{ p.ad_soyad }}<br><span class="text-muted fw-normal small">{{ p.gorev }}</span></td>
+                        <td><span class="badge bg-{{ 'info text-dark' if p.ucret_tipi == 'Aylik' else 'secondary' }}" style="font-size:11px;">{{ 'Aylık' if p.ucret_tipi == 'Aylik' else 'Günlük' }}</span></td>
+                        <td class="fw-bold">{{ "{:,.0f}".format(p.ucret) }}</td>
                         {% for gun in range(1, ayin_gun_sayisi + 1) %}
                             {% set tarih_str = "{}-{:02d}-{:02d}".format(yil, ay, gun) %}
                             {% set p_info = p.puantaj_dict.get(tarih_str, {}) %}
@@ -160,10 +172,10 @@ ANA_SAYFA_HTML = """
                                 <div class="puantaj-box">
                                     <input type="number" step="0.5" min="0" max="1" 
                                            value="{{ p_info.get('durum', '') }}" 
-                                           class="form-control form-control-sm puantaj-input {% if p_info.get('not_aciklama') %}has-note{% endif %}"
+                                           class="form-control puantaj-input {% if p_info.get('not_aciklama') %}has-note{% endif %}"
                                            id="p_input_{{ p.id }}_{{ tarih_str }}"
                                            onchange="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
-                                    <button type="button" class="btn-note border-0"
+                                    <button type="button" class="btn-note border-0 py-1"
                                             onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}', '{{ p_info.get('not_aciklama', '') }}')">
                                        {{ '📍Not' if p_info.get('not_aciklama') else '+Not' }}
                                     </button>
@@ -174,39 +186,41 @@ ANA_SAYFA_HTML = """
                         <td class="text-success fw-bold">{{ "{:,.0f}".format(p.hakedis) }}₺</td>
                         <td class="text-danger fw-bold">{{ "{:,.0f}".format(p.toplam_avans) }}₺</td>
                         <td class="fw-bold text-primary">{{ "{:,.0f}".format(p.kalan) }}₺</td>
-                        <td><a href="/personel-ekstre/{{ p.id }}?donem={{ secili_donem }}" target="_blank" class="btn btn-outline-dark btn-sm py-1 px-2 fw-bold" style="font-size:11px; height: auto;">📄Ekstre</a></td>
+                        <td><a href="/personel-ekstre/{{ p.id }}?donem={{ secili_donem }}" target="_blank" class="btn btn-outline-dark btn-sm py-2 px-3 fw-bold" style="font-size:12px; height: auto;">📄Ekstre</a></td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="{{ ayin_gun_sayisi + 8 }}" class="text-center text-muted py-3">Henüz personel yok.</td></tr>
+                    <tr><td colspan="{{ ayin_gun_sayisi + 8 }}" class="text-center text-muted py-4">Henüz kayıtlı personel bulunmuyor.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 
+    <!-- Avans / Ödeme Girişi -->
     <div class="card">
-        <h6 class="fw-bold border-bottom pb-2 mb-2 fs-6">💸 Avans / Ödeme Girişi</h6>
-        <form action="/avans-ekle" method="POST" class="row g-2">
+        <h5 class="fw-bold border-bottom pb-2 mb-3 text-danger">💸 Avans / Ödeme Girişi</h5>
+        <form action="/avans-ekle" method="POST" class="row g-3">
             <input type="hidden" name="donem" value="{{ secili_donem }}">
             <div class="col-12">
-                <select name="personel_id" class="form-select form-select-sm" required>
+                <select name="personel_id" class="form-select" required>
                     <option value="">Personel Seçin...</option>
                     {% for p in personeller %}<option value="{{ p.id }}">{{ p.ad_soyad }}</option>{% endfor %}
                 </select>
             </div>
-            <div class="col-6"><input type="date" name="tarih" class="form-control form-control-sm" value="{{ bugun }}" required></div>
-            <div class="col-6"><input type="number" step="0.01" name="tutar" class="form-control form-control-sm" placeholder="Tutar (TL)" required></div>
-            <div class="col-12"><input type="text" name="aciklama" class="form-control form-control-sm" placeholder="Açıklama (Örn: Banka havalesi)"></div>
-            <div class="col-12"><button type="submit" class="btn btn-danger btn-sm w-100 fw-bold">Avans Kaydet</button></div>
+            <div class="col-6"><input type="date" name="tarih" class="form-control" value="{{ bugun }}" required></div>
+            <div class="col-6"><input type="number" step="0.01" name="tutar" class="form-control" placeholder="Tutar (TL)" required></div>
+            <div class="col-12"><input type="text" name="aciklama" class="form-control" placeholder="Açıklama (Örn: Banka havalesi)"></div>
+            <div class="col-12"><button type="submit" class="btn btn-danger w-100 shadow-sm">Avans / Ödeme Kaydet</button></div>
         </form>
     </div>
 
+    <!-- Şantiye Günlük Gider Girişi -->
     <div class="card">
-        <h6 class="fw-bold border-bottom pb-2 mb-2 fs-6">🏗️ Şantiye Günlük Gider Girişi</h6>
-        <form action="/gider-ekle" method="POST" class="row g-2">
+        <h5 class="fw-bold border-bottom pb-2 mb-3 text-warning text-dark">🏗️ Şantiye Günlük Gider Girişi</h5>
+        <form action="/gider-ekle" method="POST" class="row g-3">
             <input type="hidden" name="donem" value="{{ secili_donem }}">
             <div class="col-12">
-                <select name="kategori" class="form-select form-select-sm" required>
+                <select name="kategori" class="form-select" required>
                     <option value="Malzeme / Nalbur">Malzeme / Nalbur</option>
                     <option value="Akaryakıt">Akaryakıt</option>
                     <option value="Yemek / Mutfak">Yemek / Mutfak</option>
@@ -215,26 +229,27 @@ ANA_SAYFA_HTML = """
                     <option value="Diğer Harcamalar">Diğer Harcamalar</option>
                 </select>
             </div>
-            <div class="col-6"><input type="date" name="tarih" class="form-control form-control-sm" value="{{ bugun }}" required></div>
-            <div class="col-6"><input type="number" step="0.01" name="tutar" class="form-control form-control-sm" placeholder="Tutar (TL)" required></div>
-            <div class="col-12"><input type="text" name="aciklama" class="form-control form-control-sm" placeholder="Açıklama (Örn: Çimento)" required></div>
-            <div class="col-12"><button type="submit" class="btn btn-warning btn-sm w-100 fw-bold">Şantiye Gideri Ekle</button></div>
+            <div class="col-6"><input type="date" name="tarih" class="form-control" value="{{ bugun }}" required></div>
+            <div class="col-6"><input type="number" step="0.01" name="tutar" class="form-control" placeholder="Tutar (TL)" required></div>
+            <div class="col-12"><input type="text" name="aciklama" class="form-control" placeholder="Açıklama (Örn: 10 torba çimento)" required></div>
+            <div class="col-12"><button type="submit" class="btn btn-warning w-100 shadow-sm fw-bold">Şantiye Gideri Ekle</button></div>
         </form>
     </div>
 
-    <div class="card mb-4">
-        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-            <h6 class="fw-bold m-0 fs-6">🛒 Bu Ayki Giderler</h6>
-            <span class="badge bg-danger fs-6">{{ "{:,.2f}".format(toplam_gider) }} TL</span>
+    <!-- Şantiye Gider Özeti -->
+    <div class="card mb-5">
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+            <h5 class="fw-bold m-0 text-dark">🛒 Bu Ayki Giderler</h5>
+            <span class="badge bg-danger fs-5 px-3 py-2">{{ "{:,.2f}".format(toplam_gider) }} TL</span>
         </div>
         <div class="table-responsive">
-            <table class="table table-sm table-striped align-middle mb-0 small">
+            <table class="table table-striped align-middle mb-0">
                 <thead><tr><th>Tarih</th><th>Kategori</th><th>Açıklama</th><th class="text-end">Tutar</th></tr></thead>
                 <tbody>
                     {% for g in giderler %}
-                    <tr><td>{{ g.tarih }}</td><td><span class="badge bg-secondary" style="font-size:10px;">{{ g.kategori }}</span></td><td>{{ g.aciklama }}</td><td class="text-end fw-bold text-danger">{{ "{:,.2f}".format(g.tutar) }} TL</td></tr>
+                    <tr><td>{{ g.tarih }}</td><td><span class="badge bg-secondary">{{ g.kategori }}</span></td><td>{{ g.aciklama }}</td><td class="text-end fw-bold text-danger">{{ "{:,.2f}".format(g.tutar) }} TL</td></tr>
                     {% else %}
-                    <tr><td colspan="4" class="text-center text-muted py-2">Gider yok.</td></tr>
+                    <tr><td colspan="4" class="text-center text-muted py-3">Bu ay kayıtlı gider bulunmuyor.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -244,13 +259,14 @@ ANA_SAYFA_HTML = """
 
 <div class="modal fade" id="notModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header"><h6 class="modal-title fw-bold">📍 Şantiye / Görev Yeri Notu</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-content p-2">
+      <div class="modal-header"><h5 class="modal-title fw-bold">📍 Şantiye / Servis Noktası Notu</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <input type="hidden" id="modal_p_id"><input type="hidden" id="modal_tarih">
-        <input type="text" id="modal_not_text" class="form-control" placeholder="Örn: Mor Salkım Villası, Erben İnşaat">
+        <label class="form-label small text-muted mb-2">Gittiği Yerler (Örn: Mor Salkım Villası, Erben İnşaat):</label>
+        <input type="text" id="modal_not_text" class="form-control py-3" placeholder="Şantiye adını yazın...">
       </div>
-      <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">İptal</button><button type="button" class="btn btn-primary btn-sm fw-bold" onclick="modalNotKaydet()">Kaydet</button></div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button><button type="button" class="btn btn-primary fw-bold" onclick="modalNotKaydet()">Notu Kaydet</button></div>
     </div>
   </div>
 </div>
@@ -299,48 +315,48 @@ EKSTRE_HTML = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ekstre - {{ personel.ad_soyad }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>body { background-color: #fff; font-size: 13px; color: #000; } .ekstre-box { max-width: 800px; margin: 10px auto; padding: 15px; } @media print { .no-print { display: none !important; } }</style>
+    <style>body { background-color: #fff; font-size: 14px; color: #000; } .ekstre-box { max-width: 800px; margin: 15px auto; padding: 20px; } @media print { .no-print { display: none !important; } }</style>
 </head>
 <body>
-<div class="container text-center my-2 no-print"><button onclick="window.print()" class="btn btn-primary btn-sm fw-bold">🖨️ Yazdır / PDF Kaydet</button></div>
+<div class="container text-center my-3 no-print"><button onclick="window.print()" class="btn btn-primary fw-bold">🖨️ Sayfayı Yazdır / PDF Kaydet</button></div>
 <div class="ekstre-box">
-    <div class="d-flex justify-content-between border-bottom pb-2 mb-3">
-        <div><h4 class="fw-bold m-0 fs-5">🏗️ PERSONEL HESAP EKSTRESİ</h4><small class="text-muted">Dönem: {{ secili_ay_str }}</small></div>
-        <div class="text-end"><h6 class="fw-bold mb-0">{{ personel.ad_soyad }}</h6><small>{{ personel.gorev }}</small></div>
+    <div class="d-flex justify-content-between border-bottom pb-3 mb-4">
+        <div><h3 class="fw-bold m-0 fs-4">🏗️ PERSONEL HESAP EKSTRESİ</h3><small class="text-muted">Dönem: {{ secili_ay_str }}</small></div>
+        <div class="text-end"><h5 class="fw-bold mb-0">{{ personel.ad_soyad }}</h5><small>{{ personel.gorev }}</small></div>
     </div>
-    <div class="row text-center mb-3 g-2">
-        <div class="col-3"><div class="border p-1 rounded"><small style="font-size:10px;">Birim</small><div class="fw-bold small">{{ "{:,.0f}".format(personel.ucret) }} TL</div></div></div>
-        <div class="col-3"><div class="border p-1 rounded"><small style="font-size:10px;">Çalışılan</small><div class="fw-bold small">{{ toplam_gun }} Gün</div></div></div>
-        <div class="col-3"><div class="border p-1 rounded"><small style="font-size:10px;">Hakediş</small><div class="fw-bold small text-success">{{ "{:,.0f}".format(hakedis) }} TL</div></div></div>
-        <div class="col-3"><div class="border p-1 rounded"><small style="font-size:10px;">Bakiye</small><div class="fw-bold small text-primary">{{ "{:,.0f}".format(kalan) }} TL</div></div></div>
+    <div class="row text-center mb-4 g-2">
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Birim</small><div class="fw-bold fs-6">{{ "{:,.0f}".format(personel.ucret) }} TL</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Çalışılan</small><div class="fw-bold fs-6">{{ toplam_gun }} Gün</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Hakediş</small><div class="fw-bold fs-6 text-success">{{ "{:,.0f}".format(hakedis) }} TL</div></div></div>
+        <div class="col-3"><div class="border p-2 rounded"><small class="text-muted">Bakiye</small><div class="fw-bold fs-6 text-primary">{{ "{:,.0f}".format(kalan) }} TL</div></div></div>
     </div>
-    <h6 class="fw-bold border-bottom pb-1 mb-2">📅 Puantaj ve Görev Yerleri</h6>
-    <table class="table table-sm table-bordered text-center align-middle mb-3 small">
+    <h5 class="fw-bold border-bottom pb-2 mb-3">📅 Puantaj ve Görev Yerleri Dökümü</h5>
+    <table class="table table-bordered text-center align-middle mb-4">
         <thead class="table-light"><tr><th>Tarih</th><th>Durum</th><th>Şantiye/Not</th><th>Tarih</th><th>Durum</th><th>Şantiye/Not</th></tr></thead>
         <tbody>
             {% for row in puantaj_rows %}
             <tr>
-                <td>{{ row[0].tarih }}</td><td>{{ 'Tam (1.0)' if row[0].durum == 1.0 else ('Yarım (0.5)' if row[0].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start">{{ row[0].not_aciklama or '-' }}</td>
+                <td>{{ row[0].tarih }}</td><td>{{ 'Tam (1.0)' if row[0].durum == 1.0 else ('Yarım (0.5)' if row[0].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start fw-bold">{{ row[0].not_aciklama or '-' }}</td>
                 {% if row[1] %}
-                <td>{{ row[1].tarih }}</td><td>{{ 'Tam (1.0)' if row[1].durum == 1.0 else ('Yarım (0.5)' if row[1].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start">{{ row[1].not_aciklama or '-' }}</td>
+                <td>{{ row[1].tarih }}</td><td>{{ 'Tam (1.0)' if row[1].durum == 1.0 else ('Yarım (0.5)' if row[1].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start fw-bold">{{ row[1].not_aciklama or '-' }}</td>
                 {% else %}<td>-</td><td>-</td><td>-</td>{% endif %}
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    <h6 class="fw-bold border-bottom pb-1 mb-2">💸 Avans / Ödemeler</h6>
-    <table class="table table-sm table-striped mb-3 small">
+    <h5 class="fw-bold border-bottom pb-2 mb-3">💸 Avans ve Ödeme Kayıtları</h5>
+    <table class="table table-striped mb-4">
         <thead><tr><th>Tarih</th><th>Açıklama</th><th class="text-end">Tutar</th></tr></thead>
         <tbody>
             {% for a in avanslar %}
-            <tr><td>{{ a.tarih }}</td><td>{{ a.aciklama or 'Avans' }}</td><td class="text-end text-danger">{{ "{:,.2f}".format(a.tutar) }} TL</td></tr>
-            {% else %}<tr><td colspan="3" class="text-center text-muted">Ödeme yok.</td></tr>{% endfor %}
-            <tr class="table-light fw-bold"><td colspan="2" class="text-end">Toplam Ödenen:</td><td class="text-end text-danger">{{ "{:,.2f}".format(toplam_avans) }} TL</td></tr>
+            <tr><td>{{ a.tarih }}</td><td>{{ a.aciklama or 'Avans' }}</td><td class="text-end fw-bold text-danger">{{ "{:,.2f}".format(a.tutar) }} TL</td></tr>
+            {% else %}<tr><td colspan="3" class="text-center text-muted">Kayıtlı ödeme bulunmuyor.</td></tr>{% endfor %}
+            <tr class="table-light fw-bold"><td colspan="2" class="text-end">Toplam Ödenen:</td><td class="text-end text-danger fw-bold">{{ "{:,.2f}".format(toplam_avans) }} TL</td></tr>
         </tbody>
     </table>
-    <div class="row mt-4 text-center small">
-        <div class="col-6"><p class="mb-4 fw-bold">Teslim Eden (Yetkili)</p><p>İmza: .......................</p></div>
-        <div class="col-6"><p class="mb-4 fw-bold">Teslim Alan (Personel)</p><p>İmza: .......................</p></div>
+    <div class="row mt-5 text-center">
+        <div class="col-6"><p class="mb-5 fw-bold">Teslim Eden (Şantiye Yetkilisi)</p><p>İmza: .......................................</p></div>
+        <div class="col-6"><p class="mb-5 fw-bold">Teslim Alan (Personel)</p><p>İmza: .......................................</p></div>
     </div>
 </div>
 </body>
