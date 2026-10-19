@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, redirect, url_for, jsonify
+from flask import Flask, render_template_string, request, redirect, url_for, jsonify, Response
 import sqlite3
 import os
 from datetime import datetime
@@ -66,11 +66,21 @@ HTML_TEMPLATE = '''
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Şantiye & Personel Takip</title>
+    
+    <!-- PWA / Mobil Uygulama Meta Etiketleri -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#212529">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Şantiye Takip">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1048/1048953.png">
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; font-size: 13px; }
+        body { background-color: #f8f9fa; font-size: 13px; user-select: none; }
         .card { margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .puantaj-box { position: relative; display: inline-block; }
         .puantaj-input { width: 42px; text-align: center; padding: 2px; font-size: 12px; font-weight: bold; }
@@ -134,7 +144,7 @@ HTML_TEMPLATE = '''
     <div class="card p-3">
         <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
             <h6 class="fw-bold m-0">📅 Aylık Puantaj ve Hakediş Tablosu</h6>
-            <small class="text-muted">Kutucuklara 1, 0.5 veya 0 yazın. Şantiye notu eklemek için altındaki nota tıklayın.</small>
+            <small class="text-muted">Kutucuklara 1, 0.5 veya 0 yazın. Şantiye notu için nota tıklayın.</small>
         </div>
         <div class="table-responsive mt-2">
             <table class="table table-bordered table-hover align-middle text-center">
@@ -316,7 +326,7 @@ HTML_TEMPLATE = '''
         <input type="hidden" id="modal_tarih">
         <div class="mb-3">
             <label class="form-label small text-muted">Gittiği Şantiye veya Görev Yeri Açıklaması:</label>
-            <input type="text" id="modal_not_text" class="form-control" placeholder="Örn: Mor Salkım Villası">
+            <input type="text" id="modal_not_text" class="form-control" placeholder="Örn: Mor Salkım Villası, Erben İnşaat">
         </div>
       </div>
       <div class="modal-footer">
@@ -533,6 +543,27 @@ EKSTRE_TEMPLATE = '''
 </body>
 </html>
 '''
+
+# PWA Manifest Ayarı (Tam Ekran Modu)
+@app.route('/manifest.json')
+def manifest():
+    manifest_data = {
+        "name": "Şantiye & Personel Takip",
+        "short_name": "Şantiye Takip",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#212529",
+        "theme_color": "#212529",
+        "icons": [
+            {
+                "src": "https://cdn-icons-png.flaticon.com/512/1048/1048953.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+            }
+        ]
+    }
+    return jsonify(manifest_data)
 
 @app.route('/')
 def ana_sayfa():
