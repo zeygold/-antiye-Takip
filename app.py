@@ -151,7 +151,7 @@ ANA_SAYFA_HTML = """
     </div>
 
     <div class="card">
-        <h5 class="fw-bold border-bottom pb-2 mb-3 text-dark">📊 Puantaj & Hakediş Tablosu ({{ secili_ay_str }} - {{ ayin_gun_sayisi }} Gün)</h5>
+        <h5 class="fw-bold border-bottom pb-2 mb-3 text-dark">📊 Puantaj & Hakediş Tablosu ({{ secili_ay_str }} - {{ ayin_gun_sayisi }} Gün / {{ is_gunu_sayisi }} İş Günü)</h5>
         <div class="table-responsive">
             <table class="table table-bordered table-hover text-center mb-1">
                 <thead class="table-dark">
@@ -174,7 +174,7 @@ ANA_SAYFA_HTML = """
                 </thead>
                 <tbody>
                     {% for p in personeller %}
-                    <tr id="row_p_{{ p.id }}" data-ucret="{{ p.ucret }}" data-ucrettipi="{{ p.ucret_tipi }}" data-ayingunsayisi="{{ ayin_gun_sayisi }}">
+                    <tr id="row_p_{{ p.id }}" data-ucret="{{ p.ucret }}" data-ucrettipi="{{ p.ucret_tipi }}" data-isgunusayisi="{{ is_gunu_sayisi }}">
                         <td class="text-start fw-bold sticky-col" style="box-shadow: 2px 0 5px rgba(0,0,0,0.1);">
                             {{ p.ad_soyad }}<br><span class="text-muted fw-normal small">{{ p.gorev }}</span>
                         </td>
@@ -296,7 +296,7 @@ function personeliGuncelleHesapla(personelId) {
     
     var ucret = parseFloat(row.getAttribute('data-ucret')) || 0;
     var ucretTipi = row.getAttribute('data-ucrettipi');
-    var ayinGunSayisi = parseInt(row.getAttribute('data-ayingunsayisi')) || 30;
+    var isGunuSayisi = parseInt(row.getAttribute('data-isgunusayisi')) || 26;
     
     var inputs = row.querySelectorAll('.p-input-val');
     var toplamGun = 0;
@@ -313,7 +313,7 @@ function personeliGuncelleHesapla(personelId) {
     
     var hakedis = 0;
     if(ucretTipi === 'Aylik') {
-        hakedis = (ucret / ayinGunSayisi) * toplamGun;
+        hakedis = (ucret / isGunuSayisi) * toplamGun;
     } else {
         hakedis = ucret * toplamGun;
     }
@@ -466,16 +466,22 @@ def ana_sayfa():
     yil, ay = map(int, secili_donem.split('-'))
     ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
     
+    # Pazar günleri hariç iş günü sayısını hesapla
+    is_gunu_sayisi = 0
     gun_kisaltmalari = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
     takvim_gunleri = []
     for gun in range(1, ayin_gun_sayisi + 1):
         dt = datetime(yil, ay, gun)
         index = dt.weekday()
+        if index != 6:  # Pazar değilse iş günü
+            is_gunu_sayisi += 1
         takvim_gunleri.append({
             'gun_no': gun,
             'gun_str': gun_kisaltmalari[index],
             'tarih_str': f"{yil}-{ay:02d}-{gun:02d}"
         })
+    if is_gunu_sayisi == 0:
+        is_gunu_sayisi = 26
     
     conn = get_db()
     cursor = conn.cursor()
@@ -491,7 +497,7 @@ def ana_sayfa():
         p_gun = sum([float(val['durum']) for val in puantaj_dict.values() if val['durum'] is not None])
         
         if p['ucret_tipi'] == 'Aylik':
-            hakedis = (p['ucret'] / ayin_gun_sayisi) * p_gun
+            hakedis = (p['ucret'] / is_gunu_sayisi) * p_gun
         else:
             hakedis = p['ucret'] * p_gun
             
@@ -511,7 +517,8 @@ def ana_sayfa():
     
     return render_template_string(ANA_SAYFA_HTML, personeller=personeller, secili_donem=secili_donem, 
                                   secili_ay_str=datetime(yil, ay, 1).strftime('%B %Y'), bugun=datetime.now().strftime('%Y-%m-%d'),
-                                  yil=yil, ay=ay, ayin_gun_sayisi=ayin_gun_sayisi, takvim_gunleri=takvim_gunleri, giderler=giderler, toplam_gider=toplam_gider)
+                                  yil=yil, ay=ay, ayin_gun_sayisi=ayin_gun_sayisi, is_gunu_sayisi=is_gunu_sayisi, 
+                                  takvim_gunleri=takvim_gunleri, giderler=giderler, toplam_gider=toplam_gider)
 
 @app.route('/api/puantaj-guncelle', methods=['POST'])
 def api_puantaj_guncelle():
@@ -549,6 +556,13 @@ def personel_ekstre(personel_id):
     yil, ay = map(int, secili_donem.split('-'))
     ayin_gun_sayisi = calendar.monthrange(yil, ay)[1]
     
+    is_gunu_sayisi = 0
+    for gun_i in range(1, ayin_gun_sayisi + 1):
+        if datetime(yil, ay, gun_i).weekday() != 6:
+            is_gunu_sayisi += 1
+    if is_gunu_sayisi == 0:
+        is_gunu_sayisi = 26
+        
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM personeller WHERE id = ?', (personel_id,))
@@ -580,7 +594,7 @@ def personel_ekstre(personel_id):
         })
         
     if personel['ucret_tipi'] == 'Aylik':
-        hakedis = (personel['ucret'] / ayin_gun_sayisi) * toplam_gun
+        hakedis = (personel['ucret'] / is_gunu_sayisi) * toplam_gun
     else:
         hakedis = personel['ucret'] * toplam_gun
         
