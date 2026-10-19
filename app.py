@@ -191,6 +191,7 @@ ANA_SAYFA_HTML = """
                                            class="form-control puantaj-input p-input-val {% if p_info.get('not_aciklama') %}has-note{% endif %}"
                                            id="p_input_{{ p.id }}_{{ tarih_str }}"
                                            data-personelid="{{ p.id }}"
+                                           data-pazar="{{ '1' if gb.gun_str == 'Paz' else '0' }}"
                                            oninput="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
                                     <button type="button" class="btn-note border-0 py-1" id="btn_not_{{ p.id }}_{{ tarih_str }}"
                                             onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}')">
@@ -300,17 +301,23 @@ function personeliGuncelleHesapla(personelId) {
     
     var inputs = row.querySelectorAll('.p-input-val');
     var toplamGun = 0;
+    var pazarMesaiGun = 0;
+    
     inputs.forEach(function(input) {
         var valStr = input.value.trim().replace(',', '.');
         var val = parseFloat(valStr);
-        if(!isNaN(val)) {
+        if(!isNaN(val) && val > 0) {
             toplamGun += val;
+            if(input.getAttribute('data-pazar') === '1') {
+                pazarMesaiGun += val;
+            }
         }
     });
     
     var hakedis = 0;
     if(ucretTipi === 'Aylik') {
-        hakedis = (toplamGun >= ayinGunSayisi) ? ucret : (ucret / ayinGunSayisi) * toplamGun;
+        var gunlukYevmiye = ucret / ayinGunSayisi;
+        hakedis = ucret + (pazarMesaiGun * gunlukYevmiye);
     } else {
         hakedis = ucret * toplamGun;
     }
@@ -402,9 +409,9 @@ EKSTRE_HTML = """
         <tbody>
             {% for row in puantaj_rows %}
             <tr>
-                <td>{{ row[0].tarih }}</td><td>{{ 'Tam (1.0)' if row[0].durum == 1.0 else ('Yarım (0.5)' if row[0].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start fw-bold">{{ row[0].not_aciklama or '-' }}</td>
+                <td>{{ row[0].tarih }}</td><td>{{ row[0].durum if row[0].durum is not none else '-' }}</td><td class="text-start fw-bold">{{ row[0].not_aciklama or '-' }}</td>
                 {% if row[1] %}
-                <td>{{ row[1].tarih }}</td><td>{{ 'Tam (1.0)' if row[1].durum == 1.0 else ('Yarım (0.5)' if row[1].durum == 0.5 else 'Gelmedi') }}</td><td class="text-start fw-bold">{{ row[1].not_aciklama or '-' }}</td>
+                <td>{{ row[1].tarih }}</td><td>{{ row[1].durum if row[1].durum is not none else '-' }}</td><td class="text-start fw-bold">{{ row[1].not_aciklama or '-' }}</td>
                 {% else %}<td>-</td><td>-</td><td>-</td>{% endif %}
             </tr>
             {% endfor %}
@@ -466,8 +473,18 @@ def ana_sayfa():
         puantaj_dict = {row['tarih']: {'durum': row['durum'], 'not_aciklama': row['not_aciklama']} for row in puantaj_rows}
         
         p_gun = sum([float(val['durum']) for val in puantaj_dict.values() if val['durum'] is not None])
+        
+        # Python tarafı arka plan hesaplaması (Aylık vs Günlük)
+        hakedis = 0
         if p['ucret_tipi'] == 'Aylik':
-            hakedis = p['ucret'] if p_gun >= ayin_gun_sayisi else (p['ucret'] / ayin_gun_sayisi) * p_gun
+            pazar_mesai_toplam = 0
+            for t_str, val in puantaj_dict.items():
+                if val['durum'] is not None and float(val['durum']) > 0:
+                    dt_obj = datetime.strptime(t_str, '%Y-%m-%d')
+                    if dt_obj.weekday() == 6: # Pazar
+                        pazar_mesai_toplam += float(val['durum'])
+            gunluk_deger = p['ucret'] / ayin_gun_sayisi
+            hakedis = p['ucret'] + (pazar_mesai_toplam * gunluk_deger)
         else:
             hakedis = p['ucret'] * p_gun
             
@@ -534,4 +551,68 @@ def personel_ekstre(personel_id):
     
     puantaj_list = []
     toplam_gun = 0.0
-    for gun in range(
+    pazar_mesai_toplam = 0.0
+    for gun in range(1, ayin_gun_sayisi + 1):
+        tarih_str = f"{yil}-{ay:02d}-{gun:02d}"
+        cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih_str))
+        row = cursor.fetchone()
+        durum = row['durum'] if row and row['durum'] is not None else 0.0
+        toplam_gun += durum
+        
+        dt_obj = datetime(yil, ay, gun)
+        if dt_obj.weekday() == 6 and durum > 0:
+            pazar_mesai_toplam += durum
+            
+        puantaj_list.append({'tarih': tarih_str, 'durum': row['durum'] if row else None, 'not_aciklama': row['not_aciklama'] if row else ''})
+        
+    puantaj_rows = [(puantaj_list[i], puantaj_list[i+1] if i+1 < len(puantaj_list) else None) for i in range(0, len(puantaj_list), 2)]
+    
+    if personel['ucret_tipi'] == 'Aylik':
+        gunluk_deger = personel['ucret'] / ayin_gun_sayisi
+        hakedis = personel['ucret'] + (pazar_mesai_toplam * gunluk_deger)
+    else:
+        hakedis = personel['ucret'] * toplam_gun
+        
+    cursor.execute('SELECT * FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? ORDER BY tarih ASC', (personel_id, secili_donem))
+    avanslar = cursor.fetchall()
+    toplam_avans = sum([a['tutar'] for a in avanslar])
+    conn.close()
+    
+    return render_template_string(EKSTRE_HTML, personel=personel, secili_ay_str=datetime(yil, ay, 1).strftime('%B %Y'),
+                                  puantaj_rows=puantaj_rows, toplam_gun=toplam_gun, hakedis=hakedis, avanslar=avanslar,
+                                  toplam_avans=toplam_avans, kalan=hakedis - toplam_avans)
+
+@app.route('/personel-ekle', methods=['POST'])
+def personel_ekle():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO personeller (ad_soyad, gorev, ucret_tipi, ucret) VALUES (?, ?, ?, ?)',
+                   (request.form['ad_soyad'], request.form.get('gorev', ''), request.form.get('ucret_tipi', 'Gunluk'), float(request.form.get('ucret', 0))))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+@app.route('/avans-ekle', methods=['POST'])
+def avans_ekle():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO hareketler (personel_id, tarih, tip, tutar, aciklama) VALUES (?, ?, ?, ?, ?)',
+                   (request.form['personel_id'], request.form['tarih'], 'Avans', float(request.form['tutar']), request.form.get('aciklama', '')))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+@app.route('/gider-ekle', methods=['POST'])
+def gider_ekle():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO giderler (tarih, kategori, tutar, aciklama) VALUES (?, ?, ?, ?)',
+                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form['aciklama']))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
+
+if __name__ == '__main__':
+    init_db()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
