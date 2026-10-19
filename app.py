@@ -6,7 +6,6 @@ import calendar
 
 app = Flask(__name__)
 
-# Render'da kalıcı disk klasörü varsa oraya, yoksa yerel klasöre kaydeder
 DATA_DIR = '/opt/render/project/data'
 if os.path.exists(DATA_DIR):
     DB_NAME = os.path.join(DATA_DIR, 'santiye.db')
@@ -89,8 +88,23 @@ ANA_SAYFA_HTML = """
         .puantaj-input { width: 48px; height: 40px; text-align: center; padding: 2px; font-size: 15px; font-weight: bold; border-radius: 8px; }
         .has-note { background-color: #fff3cd !important; border-color: #ffe69c !important; }
         .btn-note { font-size: 11px; font-weight: bold; padding: 3px 6px; border-radius: 6px; background-color: #e9ecef; color: #333; text-decoration: none; display: block; width: 48px; text-align: center; }
+        
         .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
-        .table th, .table td { padding: 10px 6px; vertical-align: middle; }
+        .table th, .table td { padding: 10px 6px; vertical-align: middle; white-space: nowrap; }
+        
+        /* 🔥 İsim Sütununu Sağa Kaydırırken Sabitleme (Sticky Column) */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            background-color: #ffffff;
+            z-index: 2;
+        }
+        thead .sticky-col {
+            background-color: #212529 !important;
+            color: #ffffff;
+            z-index: 3;
+        }
+
         #toast-msg {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 9999;
             display: none; padding: 12px 24px; background-color: #198754; color: white;
@@ -141,7 +155,7 @@ ANA_SAYFA_HTML = """
             <table class="table table-bordered table-hover text-center mb-1">
                 <thead class="table-dark">
                     <tr>
-                        <th class="text-start" style="min-width: 140px;">Ad Soyad</th>
+                        <th class="text-start sticky-col" style="min-width: 140px; box-shadow: 2px 0 5px rgba(0,0,0,0.1);">Ad Soyad</th>
                         <th style="min-width: 60px;">Tip</th>
                         <th style="min-width: 70px;">Ücret</th>
                         {% for gun in range(1, ayin_gun_sayisi + 1) %}
@@ -157,7 +171,9 @@ ANA_SAYFA_HTML = """
                 <tbody>
                     {% for p in personeller %}
                     <tr>
-                        <td class="text-start fw-bold">{{ p.ad_soyad }}<br><span class="text-muted fw-normal small">{{ p.gorev }}</span></td>
+                        <td class="text-start fw-bold sticky-col" style="box-shadow: 2px 0 5px rgba(0,0,0,0.1);">
+                            {{ p.ad_soyad }}<br><span class="text-muted fw-normal small">{{ p.gorev }}</span>
+                        </td>
                         <td><span class="badge bg-{{ 'info text-dark' if p.ucret_tipi == 'Aylik' else 'secondary' }}" style="font-size:11px;">{{ 'Aylık' if p.ucret_tipi == 'Aylik' else 'Günlük' }}</span></td>
                         <td class="fw-bold">{{ "{:,.0f}".format(p.ucret) }}</td>
                         {% for gun in range(1, ayin_gun_sayisi + 1) %}
@@ -504,7 +520,7 @@ def gider_ekle():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('INSERT INTO giderler (tarih, kategori, tutar, aciklama) VALUES (?, ?, ?, ?)',
-                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form.get('aciklama', '')))
+                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form['aciklama']))
     conn.commit()
     conn.close()
     return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
