@@ -74,23 +74,22 @@ ANA_SAYFA_HTML = """
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #e9ecef; font-size: 15px; -webkit-tap-highlight-color: transparent; }
-        .container-fluid { padding: 12px; max-width: 600px; margin: 0 auto; }
+        body { background-color: #e9ecef; font-size: 15px; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
         
-        /* Büyük Tam Ekran Blok Tasarımı */
-        .card { margin-bottom: 18px; border-radius: 16px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 18px; background: #ffffff; }
+        /* Yan boşlukları sıfırlayan tam ekran geniş yerleşim */
+        .container-fluid { padding: 8px !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; }
         
-        /* Genişletilmiş Dokunmatik Girdiler ve Butonlar */
+        .card { margin-bottom: 14px; border-radius: 12px; border: none; box-shadow: 0 3px 10px rgba(0,0,0,0.06); padding: 14px; background: #ffffff; }
+        
         .form-control, .form-select { height: 48px; font-size: 16px; border-radius: 10px; border: 1.5px solid #ced4da; }
         .btn { height: 50px; font-size: 16px; border-radius: 10px; font-weight: bold; }
         
-        /* Puantaj Kutuları */
         .puantaj-box { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
         .puantaj-input { width: 48px; height: 40px; text-align: center; padding: 2px; font-size: 15px; font-weight: bold; border-radius: 8px; }
         .has-note { background-color: #fff3cd !important; border-color: #ffe69c !important; }
         .btn-note { font-size: 11px; font-weight: bold; padding: 3px 6px; border-radius: 6px; background-color: #e9ecef; color: #333; text-decoration: none; display: block; width: 48px; text-align: center; }
         
-        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
         .table th, .table td { padding: 10px 6px; vertical-align: middle; }
         
         #toast-msg {
@@ -103,7 +102,7 @@ ANA_SAYFA_HTML = """
 <body>
 <div id="toast-msg">Otomatik Kaydedildi ✔</div>
 
-<nav class="navbar navbar-dark bg-dark mb-3 py-3 rounded-bottom shadow-sm">
+<nav class="navbar navbar-dark bg-dark mb-2 py-3 shadow-sm rounded-0">
     <div class="container-fluid px-3 d-flex justify-content-between align-items-center">
         <span class="navbar-brand fw-bold fs-5">🏗️ Şantiye & Personel</span>
         <span class="navbar-text text-white small fw-bold">{{ secili_ay_str }}</span>
