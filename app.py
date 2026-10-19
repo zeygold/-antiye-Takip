@@ -151,7 +151,7 @@ ANA_SAYFA_HTML = """
     </div>
 
     <div class="card">
-        <h5 class="fw-bold border-bottom pb-2 mb-3 text-dark">📊 Puantaj & Hakediş Tablosu</h5>
+        <h5 class="fw-bold border-bottom pb-2 mb-3 text-dark">📊 Puantaj & Hakediş Tablosu ({{ secili_ay_str }} - {{ ayin_gun_sayisi }} Gün)</h5>
         <div class="table-responsive">
             <table class="table table-bordered table-hover text-center mb-1">
                 <thead class="table-dark">
@@ -191,7 +191,6 @@ ANA_SAYFA_HTML = """
                                            class="form-control puantaj-input p-input-val {% if p_info.get('not_aciklama') %}has-note{% endif %}"
                                            id="p_input_{{ p.id }}_{{ tarih_str }}"
                                            data-personelid="{{ p.id }}"
-                                           data-pazar="{{ '1' if gb.gun_str == 'Paz' else '0' }}"
                                            oninput="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
                                     <button type="button" class="btn-note border-0 py-1" id="btn_not_{{ p.id }}_{{ tarih_str }}"
                                             onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}')">
@@ -296,49 +295,22 @@ function personeliGuncelleHesapla(personelId) {
     if(!row) return;
     
     var ucret = parseFloat(row.getAttribute('data-ucret')) || 0;
-    var ucretTipi = row.getAttribute('data-ucrettipi');
     var ayinGunSayisi = parseInt(row.getAttribute('data-ayingunsayisi')) || 30;
     
     var inputs = row.querySelectorAll('.p-input-val');
     var toplamGun = 0;
-    var eksikCalisilanGun = 0;
-    var pazarMesaiGun = 0;
     
     inputs.forEach(function(input) {
         var valStr = input.value.trim().replace(',', '.');
         var val = parseFloat(valStr);
-        var isPazar = (input.getAttribute('data-pazar') === '1');
-        
-        if(!isNaN(val)) {
-            if(val > 0) {
-                toplamGun += val;
-                if(ucretTipi === 'Aylik' && isPazar) {
-                    pazarMesaiGun += val; // Pazar çalışması ekstradır
-                }
-            }
-        }
-        
-        // Aylık maaşlılar için hafta içi / cumartesi günlerinde 0 veya eksik girilenler düşülür
-        if(ucretTipi === 'Aylik' && !isPazar) {
-            if(valStr !== '') {
-                if(val === 0) {
-                    eksikCalisilanGun += 1.0;
-                } else if(val === 0.5) {
-                    eksikCalisilanGun += 0.5;
-                }
-            }
+        if(!isNaN(val) && val > 0) {
+            toplamGun += val;
         }
     });
     
-    var hakedis = 0;
+    // Dinamik günlük yevmiye: Maaş / o ayın gün sayısı (28, 30 veya 31)
     var gunlukYevmiye = ucret / ayinGunSayisi;
-    
-    if(ucretTipi === 'Aylik') {
-        // Net maaş - Hafta içi gelmediği için düşülen günler + Pazar mesaileri
-        hakedis = ucret - (eksikCalisilanGun * gunlukYevmiye) + (pazarMesaiGun * gunlukYevmiye);
-    } else {
-        hakedis = gunlukYevmiye * toplamGun; // Günlük yevmiye
-    }
+    var hakedis = gunlukYevmiye * toplamGun;
     
     var avansCellText = document.getElementById('avans_' + personelId).innerText;
     var temizAvans = avansCellText.replace('₺', '').split('.').join('').replace(',', '.');
@@ -493,27 +465,7 @@ def ana_sayfa():
         p_gun = sum([float(val['durum']) for val in puantaj_dict.values() if val['durum'] is not None])
         
         gunluk_deger = p['ucret'] / ayin_gun_sayisi
-        hakedis = 0
-        
-        if p['ucret_tipi'] == 'Aylik':
-            eksik_gun = 0
-            pazar_mesai = 0
-            for tarih_str, val in puantaj_dict.items():
-                if val['durum'] is not None:
-                    dt_obj = datetime.strptime(tarih_str, '%Y-%m-%d')
-                    is_pazar = (dt_obj.weekday() == 6)
-                    d_val = float(val['durum'])
-                    if is_pazar:
-                        if d_val > 0:
-                            pazar_mesai += d_val
-                    else:
-                        if d_val == 0:
-                            eksik_gun += 1.0
-                        elif d_val == 0.5:
-                            eksik_gun += 0.5
-            hakedis = p['ucret'] - (eksik_gun * gunluk_deger) + (pazar_mesai * gunluk_deger)
-        else:
-            hakedis = gunluk_deger * p_gun
+        hakedis = gunluk_deger * p_gun
             
         cursor.execute('SELECT SUM(tutar) as toplam_avans FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? AND tip = "Avans"', (p['id'], secili_donem))
         p_avans = cursor.fetchone()['toplam_avans'] or 0.0
@@ -589,27 +541,7 @@ def personel_ekstre(personel_id):
     puantaj_rows = [(puantaj_list[i], puantaj_list[i+1] if i+1 < len(puantaj_list) else None) for i in range(0, len(puantaj_list), 2)]
     
     gunluk_deger = personel['ucret'] / ayin_gun_sayisi
-    hakedis = 0
-    
-    if personel['ucret_tipi'] == 'Aylik':
-        eksik_gun = 0
-        pazar_mesai = 0
-        for item in puantaj_list:
-            if item['durum'] is not None:
-                dt_obj = datetime.strptime(item['tarih'], '%Y-%m-%d')
-                is_pazar = (dt_obj.weekday() == 6)
-                d_val = float(item['durum'])
-                if is_pazar:
-                    if d_val > 0:
-                        pazar_mesai += d_val
-                else:
-                    if d_val == 0:
-                        eksik_gun += 1.0
-                    elif d_val == 0.5:
-                        eksik_gun += 0.5
-        hakedis = personel['ucret'] - (eksik_gun * gunluk_deger) + (pazar_mesai * gunluk_deger)
-    else:
-        hakedis = gunluk_deger * toplam_gun
+    hakedis = gunluk_deger * toplam_gun
         
     cursor.execute('SELECT * FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? ORDER BY tarih ASC', (personel_id, secili_donem))
     avanslar = cursor.fetchall()
@@ -644,6 +576,7 @@ def avans_ekle():
 def gider_ekle():
     conn = get_db()
     cursor = conn.cursor()
+    cursor.execute('SELECT * FROM giderler WHERE strftime("%Y-%m", tarih) = ? ORDER BY giderler.tarih DESC', (secili_donem,))
     cursor.execute('INSERT INTO giderler (tarih, kategori, tutar, aciklama) VALUES (?, ?, ?, ?)',
                    (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form['aciklama']))
     conn.commit()
