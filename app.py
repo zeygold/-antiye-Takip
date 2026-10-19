@@ -301,15 +301,15 @@ function personeliGuncelleHesapla(personelId) {
     
     var inputs = row.querySelectorAll('.p-input-val');
     var toplamGun = 0;
-    var pazarMesaiGun = 0;
+    var ekstraMesaiGun = 0;
     
     inputs.forEach(function(input) {
         var valStr = input.value.trim().replace(',', '.');
         var val = parseFloat(valStr);
         if(!isNaN(val) && val > 0) {
             toplamGun += val;
-            if(input.getAttribute('data-pazar') === '1') {
-                pazarMesaiGun += val;
+            if(ucretTipi === 'Aylik' && input.getAttribute('data-pazar') === '1') {
+                ekstraMesaiGun += val;
             }
         }
     });
@@ -317,7 +317,7 @@ function personeliGuncelleHesapla(personelId) {
     var hakedis = 0;
     if(ucretTipi === 'Aylik') {
         var gunlukYevmiye = ucret / ayinGunSayisi;
-        hakedis = ucret + (pazarMesaiGun * gunlukYevmiye);
+        hakedis = ucret + (ekstraMesaiGun * gunlukYevmiye);
     } else {
         hakedis = ucret * toplamGun;
     }
@@ -474,17 +474,16 @@ def ana_sayfa():
         
         p_gun = sum([float(val['durum']) for val in puantaj_dict.values() if val['durum'] is not None])
         
-        # Python tarafı arka plan hesaplaması (Aylık vs Günlük)
         hakedis = 0
         if p['ucret_tipi'] == 'Aylik':
-            pazar_mesai_toplam = 0
+            ekstra_mesai_gun = 0
             for t_str, val in puantaj_dict.items():
                 if val['durum'] is not None and float(val['durum']) > 0:
                     dt_obj = datetime.strptime(t_str, '%Y-%m-%d')
-                    if dt_obj.weekday() == 6: # Pazar
-                        pazar_mesai_toplam += float(val['durum'])
+                    if dt_obj.weekday() == 6:  # Pazar günü çalışması ekstra mesai sayılır
+                        ekstra_mesai_gun += float(val['durum'])
             gunluk_deger = p['ucret'] / ayin_gun_sayisi
-            hakedis = p['ucret'] + (pazar_mesai_toplam * gunluk_deger)
+            hakedis = p['ucret'] + (ekstra_mesai_gun * gunluk_deger)
         else:
             hakedis = p['ucret'] * p_gun
             
@@ -551,7 +550,7 @@ def personel_ekstre(personel_id):
     
     puantaj_list = []
     toplam_gun = 0.0
-    pazar_mesai_toplam = 0.0
+    ekstra_mesai_gun = 0.0
     for gun in range(1, ayin_gun_sayisi + 1):
         tarih_str = f"{yil}-{ay:02d}-{gun:02d}"
         cursor.execute('SELECT durum, not_aciklama FROM puantaj WHERE personel_id = ? AND tarih = ?', (personel_id, tarih_str))
@@ -561,7 +560,7 @@ def personel_ekstre(personel_id):
         
         dt_obj = datetime(yil, ay, gun)
         if dt_obj.weekday() == 6 and durum > 0:
-            pazar_mesai_toplam += durum
+            ekstra_mesai_gun += durum
             
         puantaj_list.append({'tarih': tarih_str, 'durum': row['durum'] if row else None, 'not_aciklama': row['not_aciklama'] if row else ''})
         
@@ -569,7 +568,7 @@ def personel_ekstre(personel_id):
     
     if personel['ucret_tipi'] == 'Aylik':
         gunluk_deger = personel['ucret'] / ayin_gun_sayisi
-        hakedis = personel['ucret'] + (pazar_mesai_toplam * gunluk_deger)
+        hakedis = personel['ucret'] + (ekstra_mesai_gun * gunluk_deger)
     else:
         hakedis = personel['ucret'] * toplam_gun
         
