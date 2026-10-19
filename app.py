@@ -301,18 +301,42 @@ function personeliGuncelleHesapla(personelId) {
     
     var inputs = row.querySelectorAll('.p-input-val');
     var toplamGun = 0;
+    var eksikCalisilanGun = 0;
+    var pazarMesaiGun = 0;
     
     inputs.forEach(function(input) {
         var valStr = input.value.trim().replace(',', '.');
         var val = parseFloat(valStr);
-        if(!isNaN(val) && val > 0) {
-            toplamGun += val;
+        var isPazar = (input.getAttribute('data-pazar') === '1');
+        
+        if(!isNaN(val)) {
+            if(val > 0) {
+                toplamGun += val;
+                if(ucretTipi === 'Aylik' && isPazar) {
+                    pazarMesaiGun += val;
+                }
+            }
+        }
+        
+        // Aylık maaşlılar için hafta içi eksik günler (0 yazılan veya boş bırakılmayan ama 0 olanlar)
+        if(ucretTipi === 'Aylik' && !isPazar) {
+            if(valStr !== '' && val === 0) {
+                eksikCalisilanGun += 1;
+            } else if(valStr !== '' && val === 0.5) {
+                eksikCalisilanGun += 0.5;
+            }
         }
     });
     
     var hakedis = 0;
     var gunlukYevmiye = ucret / ayinGunSayisi;
-    hakedis = gunlukYevmiye * toplamGun;
+    
+    if(ucretTipi === 'Aylik') {
+        // Net maaş üzerinden eksik gün düşülür, pazar mesaisi eklenir
+        hakedis = ucret - (eksikCalisilanGun * gunlukYevmiye) + (pazarMesaiGun * gunlukYevmiye);
+    } else {
+        hakedis = gunlukYevmiye * toplamGun; // Günlük yevmiyeli
+    }
     
     var avansCellText = document.getElementById('avans_' + personelId).innerText;
     var temizAvans = avansCellText.replace('₺', '').split('.').join('').replace(',', '.');
@@ -467,7 +491,27 @@ def ana_sayfa():
         p_gun = sum([float(val['durum']) for val in puantaj_dict.values() if val['durum'] is not None])
         
         gunluk_deger = p['ucret'] / ayin_gun_sayisi
-        hakedis = gunluk_deger * p_gun
+        hakedis = 0
+        
+        if p['ucret_tipi'] == 'Aylik':
+            eksik_gun = 0
+            pazar_mesai = 0
+            for tarih_str, val in puantaj_dict.items():
+                if val['durum'] is not None:
+                    dt_obj = datetime.strptime(tarih_str, '%Y-%m-%d')
+                    is_pazar = (dt_obj.weekday() == 6)
+                    d_val = float(val['durum'])
+                    if is_pazar:
+                        if d_val > 0:
+                            pazar_mesai += d_val
+                    else:
+                        if d_val == 0:
+                            eksik_gun += 1.0
+                        elif d_val == 0.5:
+                            eksik_gun += 0.5
+            hakedis = p['ucret'] - (eksik_gun * gunluk_deger) + (pazar_mesai * gunluk_deger)
+        else:
+            hakedis = gunluk_deger * p_gun
             
         cursor.execute('SELECT SUM(tutar) as toplam_avans FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? AND tip = "Avans"', (p['id'], secili_donem))
         p_avans = cursor.fetchone()['toplam_avans'] or 0.0
@@ -543,7 +587,27 @@ def personel_ekstre(personel_id):
     puantaj_rows = [(puantaj_list[i], puantaj_list[i+1] if i+1 < len(puantaj_list) else None) for i in range(0, len(puantaj_list), 2)]
     
     gunluk_deger = personel['ucret'] / ayin_gun_sayisi
-    hakedis = gunluk_deger * toplam_gun
+    hakedis = 0
+    
+    if personel['ucret_tipi'] == 'Aylik':
+        eksik_gun = 0
+        pazar_mesai = 0
+        for item in puantaj_list:
+            if item['durum'] is not None:
+                dt_obj = datetime.strptime(item['tarih'], '%Y-%m-%d')
+                is_pazar = (dt_obj.weekday() == 6)
+                d_val = float(item['durum'])
+                if is_pazar:
+                    if d_val > 0:
+                        pazar_mesai += d_val
+                else:
+                    if d_val == 0:
+                        eksik_gun += 1.0
+                    elif d_val == 0.5:
+                        eksik_gun += 0.5
+        hakedis = personel['ucret'] - (eksik_gun * gunluk_deger) + (pazar_mesai * gunluk_deger)
+    else:
+        hakedis = gunluk_deger * toplam_gun
         
     cursor.execute('SELECT * FROM hareketler WHERE personel_id = ? AND strftime("%Y-%m", tarih) = ? ORDER BY tarih ASC', (personel_id, secili_donem))
     avanslar = cursor.fetchall()
