@@ -75,23 +75,16 @@ ANA_SAYFA_HTML = """
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #e9ecef; font-size: 15px; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
-        
-        /* Yan boşlukları sıfırlayan tam ekran geniş yerleşim */
         .container-fluid { padding: 8px !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; }
-        
         .card { margin-bottom: 14px; border-radius: 12px; border: none; box-shadow: 0 3px 10px rgba(0,0,0,0.06); padding: 14px; background: #ffffff; }
-        
         .form-control, .form-select { height: 48px; font-size: 16px; border-radius: 10px; border: 1.5px solid #ced4da; }
         .btn { height: 50px; font-size: 16px; border-radius: 10px; font-weight: bold; }
-        
         .puantaj-box { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
         .puantaj-input { width: 48px; height: 40px; text-align: center; padding: 2px; font-size: 15px; font-weight: bold; border-radius: 8px; }
         .has-note { background-color: #fff3cd !important; border-color: #ffe69c !important; }
         .btn-note { font-size: 11px; font-weight: bold; padding: 3px 6px; border-radius: 6px; background-color: #e9ecef; color: #333; text-decoration: none; display: block; width: 48px; text-align: center; }
-        
         .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
         .table th, .table td { padding: 10px 6px; vertical-align: middle; }
-        
         #toast-msg {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 9999;
             display: none; padding: 12px 24px; background-color: #198754; color: white;
@@ -100,7 +93,7 @@ ANA_SAYFA_HTML = """
     </style>
 </head>
 <body>
-<div id="toast-msg">Otomatik Kaydedildi ✔</div>
+<div id="toast-msg">Kaydedildi ✔</div>
 
 <nav class="navbar navbar-dark bg-dark mb-2 py-3 shadow-sm rounded-0">
     <div class="container-fluid px-3 d-flex justify-content-between align-items-center">
@@ -174,8 +167,8 @@ ANA_SAYFA_HTML = """
                                            class="form-control puantaj-input {% if p_info.get('not_aciklama') %}has-note{% endif %}"
                                            id="p_input_{{ p.id }}_{{ tarih_str }}"
                                            onchange="otomatikKaydet({{ p.id }}, '{{ tarih_str }}')">
-                                    <button type="button" class="btn-note border-0 py-1"
-                                            onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}', '{{ p_info.get('not_aciklama', '') }}')">
+                                    <button type="button" class="btn-note border-0 py-1" id="btn_not_{{ p.id }}_{{ tarih_str }}"
+                                            onclick="modalNotAc({{ p.id }}, '{{ tarih_str }}')">
                                        {{ '📍Not' if p_info.get('not_aciklama') else '+Not' }}
                                     </button>
                                 </div>
@@ -274,6 +267,7 @@ ANA_SAYFA_HTML = """
 <script>
 var myModal;
 document.addEventListener("DOMContentLoaded", function() { myModal = new bootstrap.Modal(document.getElementById('notModal')); });
+
 function otomatikKaydet(personelId, tarih, notVal = null) {
     var durumVal = document.getElementById('p_input_' + personelId + '_' + tarih).value;
     fetch('/api/puantaj-guncelle', {
@@ -284,21 +278,36 @@ function otomatikKaydet(personelId, tarih, notVal = null) {
         if(data.success) {
             var toast = document.getElementById('toast-msg');
             toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; location.reload(); }, 800);
+            setTimeout(() => { toast.style.display = 'none'; }, 1200);
         }
     });
 }
-function modalNotAc(pId, tarih, not) {
+
+function modalNotAc(pId, tarih) {
     document.getElementById('modal_p_id').value = pId;
     document.getElementById('modal_tarih').value = tarih;
-    document.getElementById('modal_not_text').value = not || '';
+    var inputElem = document.getElementById('p_input_' + pId + '_' + tarih);
+    // Mevcut notu input başlığından veya önbellekten alabilmek için fetch yapabiliriz ya da direkt kutudan okuyabiliriz
+    document.getElementById('modal_not_text').value = '';
     myModal.show();
 }
+
 function modalNotKaydet() {
     var pId = document.getElementById('modal_p_id').value;
     var tarih = document.getElementById('modal_tarih').value;
     var text = document.getElementById('modal_not_text').value;
     myModal.hide();
+    
+    // Not butonunun yazısını güncelle
+    var btn = document.getElementById('btn_not_' + pId + '_' + tarih);
+    if(text.trim() !== '') {
+        btn.innerText = '📍Not';
+        document.getElementById('p_input_' + pId + '_' + tarih).classList.add('has-note');
+    } else {
+        btn.innerText = '+Not';
+        document.getElementById('p_input_' + pId + '_' + tarih).classList.remove('has-note');
+    }
+    
     otomatikKaydet(pId, tarih, text);
 }
 </script>
@@ -487,23 +496,3 @@ def personel_ekle():
 def avans_ekle():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO hareketler (personel_id, tarih, tip, tutar, aciklama) VALUES (?, ?, ?, ?, ?)',
-                   (request.form['personel_id'], request.form['tarih'], 'Avans', float(request.form['tutar']), request.form.get('aciklama', '')))
-    conn.commit()
-    conn.close()
-    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
-
-@app.route('/gider-ekle', methods=['POST'])
-def gider_ekle():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO giderler (tarih, kategori, tutar, aciklama) VALUES (?, ?, ?, ?)',
-                   (request.form['tarih'], request.form['kategori'], float(request.form['tutar']), request.form['aciklama']))
-    conn.commit()
-    conn.close()
-    return redirect(url_for('ana_sayfa', donem=request.form.get('donem', datetime.now().strftime('%Y-%m'))))
-
-if __name__ == '__main__':
-    init_db()
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
